@@ -1,9 +1,11 @@
 import json
 import os
+import random
 import time
 
 import pymongo
-from graia.application import MessageChain, GraiaMiraiApplication, Group
+from graia.application import MessageChain
+from graia.application.message.elements.internal import Plain, Image
 from pypinyin import lazy_pinyin
 from PIL import Image as ImageLib
 from PIL import ImageDraw, ImageFont
@@ -13,9 +15,11 @@ import config
 import global_var as gol
 
 client = pymongo.MongoClient(host='localhost', port=27017)
-
-db = client['moca']
-gcf = db['group_config']
+db1 = client['moca']
+gcf = db1['group_config']
+ucf = db1['user_config']
+gkw = db1['group_keyword']
+gc = db1['group_count']
 
 
 def init_group_config(group_id: int):
@@ -43,7 +47,7 @@ def fetch_config(group_id: int, arg: str):
 
     :param group_id: QQ群号 (int)
     :param arg: 参数名称 (str)
-    :return: 参数值 (any), 若存在config但查询的参数不存在返回-1，若
+    :return: 参数值 (any), 若存在config但查询的参数不存在返回-2，若不存在config即群组config未初始化返回-1
     """
     query_config = {"group_id": group_id}
     if not gcf.count_documents(query_config) == 1:
@@ -51,8 +55,7 @@ def fetch_config(group_id: int, arg: str):
 
     res = gcf.find({"group_id": group_id}, {arg: 1})
     try:
-        config_data = res[0]
-        value = config_data.get(arg)
+        value = res[0].get(arg)
         if value is None:
             return -2
         else:
@@ -166,12 +169,40 @@ def contains(*arg: str) -> bool:
     :return:
     """
     target = arg[-1]
-    print(target)
     for text in arg[:-1]:
-        print(text, "in", target, "?")
         if text in target:
             return True
     return False
+
+
+def fetch_group_keyword(group: int) -> dict:
+    """
+    获取群关键词列表.
+
+    :param group: 群号
+
+    :return: 关键词列表(dict)
+    """
+    try:
+        res = gkw.find({"group": group})
+        return res[0]['keyword']
+    except IndexError:
+        return {}
+
+
+def fetch_group_count(group: int) -> dict:
+    """
+    获取群关键词列表.
+
+    :param group: 群号
+
+    :return: 统计次数列表(dict)
+    """
+    try:
+        res = gc.find({"group": group})
+        return res[0]['count']
+    except IndexError:
+        return {}
 
 
 def sort_dict(origin_dict: dict) -> dict:
@@ -250,6 +281,60 @@ def create_dict_pic(data: dict, group_id_with_type: str, title: str, sort_by_val
     draw.multiline_text((space, space), tab_info, fill=(0, 0, 0), font=font)
     im_new.save(new_img_file, "png")
     del draw
+
+
+def set_group_flag(group_id: int):
+    """
+    设置群已处理过的flag.
+
+    :return: 使用说明
+    """
+    gol.set_value(f'group_{group_id}_processed', True)
+
+
+def get_group_flag(group_id: int):
+    """
+    获取群处理flag状态.
+
+    :return: 状态(bool)
+    """
+    flag = gol.get_value(f'group_{group_id}_processed')
+    if flag:
+        return True
+    return False
+
+
+def exp_enabled(group_id: int) -> bool:
+    """
+    检查是否启用实验功能
+
+    :param group_id: 群号
+
+    :return: True/False
+    """
+    exp_status = fetch_config(group_id, "exp")
+    if exp_status is None:
+        return True
+    else:
+        if exp_status == 0:
+            return False
+        else:
+            return True
+
+
+def rand_pic(name: str) -> str:
+    """
+    从图片库中随机抽取一张
+
+    :param name: 名称
+    :return: 图片文件名（名称不存在时返回"NAME_NOT_FOUND"）
+    """
+    if not os.path.isdir(os.path.join(config.pic_path, name)):
+        return "NAME_NOT_FOUND"
+    file_list = os.listdir(os.path.join(config.pic_path, name))
+    random.shuffle(file_list)
+    return random.choice(file_list)
+
 
 def user_manual() -> MessageChain:
     """
