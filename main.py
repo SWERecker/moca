@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import random
+import re
 import time
 
 from graia.application import GraiaMiraiApplication, Session, GroupMessage, MessageChain, Group, Member
@@ -14,7 +15,7 @@ import global_var as gol
 import config
 from function import is_superman, contains, is_in_user_cd, update_user_cd, is_in_cd, update_cd, sort_dict, \
     create_dict_pic, user_manual, set_group_flag, fetch_group_count, get_group_flag, fetch_group_keyword, exp_enabled, \
-    rand_pic
+    rand_pic, init_mocabot, init_group
 
 loop = asyncio.get_event_loop()
 
@@ -36,7 +37,7 @@ debug_mode = True
 
 #   判断是否开启Debug模式
 def judge_debug_mode(group: Group):
-    if judge_debug_mode:
+    if debug_mode:
         if not group.id == 907274961:
             raise ExecutionStop()
 
@@ -76,6 +77,13 @@ def judge_manager(member: Member):
 def judge_superman(member: Member):
     if not is_superman(member.id):
         raise ExecutionStop()
+
+
+@bcc.receiver(GroupMessage, headless_decoraters=[
+    Depend(judge_debug_mode)
+], priority=1)
+async def group_init_handler(group: Group):
+    init_group(group.id)
 
 
 # At了机器人的群消息监听器
@@ -133,11 +141,8 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
     if get_group_flag(group.id):
         return
 
-    twice_lp_pan_amount = 1
-
     text = message.asDisplay().replace(' ', '').lower()
-    group_keywords = fetch_group_keyword(group.id)
-    print(group_keywords)
+
     if contains("使用说明", "help", text):
         await app.sendGroupMessage(group, user_manual())
         set_group_flag(group.id)
@@ -145,51 +150,75 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
     #   遍历查询是否在关键词列表中并发送图片
     #   权限：成员
     #   是否At机器人：否
-    for keys in group_keywords:  # 在字典中遍历查找
-        for e in range(len(group_keywords[keys])):  # 遍历名称
-            if text == group_keywords[keys][e]:  # 若命中名称
-                if not is_in_cd(group.id, "replyCD") or is_superman(member.id):  # 判断是否在回复图片的cd中
-                    pic_name = rand_pic(keys)
-                    await app.sendGroupMessage(group, MessageChain.create([
-                        Image.fromLocalFile(os.path.join(config.pic_path, keys, pic_name))
-                    ]))
-                    # await update_count(group.id, keys)  # 更新统计次数
-                    update_cd(group.id, "replyCD")  # 更新cd
-                return
+    group_keywords = fetch_group_keyword(group.id)
+    if is_in_cd(group.id, "replyCD"):
+        return
+    for name, key_regex in group_keywords.items():
+        p = re.fullmatch(key_regex, text)
+        if p:
+            print(f"Found in {name}")
+            file = rand_pic(name)
+            await app.sendGroupMessage(group, MessageChain.create([
+                Image.fromLocalFile(file[0])
+            ]))
+            return
 
-    for keys in group_keywords:  # 在字典中遍历查找
-        for e in range(len(group_keywords[keys])):  # 遍历名称
-            if group_keywords[keys][e] in text:  # 若命中名称
-                if not is_in_cd(group.id, "replyCD") or is_superman(member.id):  # 判断是否在回复图片的cd中
-                    twice_lp = text.startswith("多")
-                    if not exp_enabled(group.id):
-                        twice_lp = False
-                    if twice_lp:
-                        # status = consume_pan(member.id, r, twice_lp_pan_amount, PAN_TWICE_LP_CONSUME)
-                        status = False, False
-                        if status[0]:
-                            pics = [rand_pic(keys), rand_pic(keys)]
-                            await app.sendGroupMessage(group, MessageChain.create([
-                                Plain(f"你吃掉了{twice_lp_pan_amount}个面包，还剩{status[1]}个面包哦~"),
-                                Image.fromLocalFile(os.path.join(config.pic_path, keys, pics[0])),
-                                Image.fromLocalFile(os.path.join(config.pic_path, keys, pics[1]))
-                            ]))
-                        else:
-                            if status[1] == 0:
-                                stat_text = "你没有面包了呢~"
-                            else:
-                                stat_text = f"只剩{status[1]}个面包了呢~"
-                            await app.sendGroupMessage(group, MessageChain.create([
-                                Plain(f"呜呜呜，面包不够了~你需要{twice_lp_pan_amount}个面包，但是{stat_text}")
-                            ]))
-                    else:
-                        pic_name = rand_pic(keys)
-                        await app.sendGroupMessage(group, MessageChain.create([
-                            Image.fromLocalFile(os.path.join(config.pic_path, keys, pic_name))
-                        ]))
-                    # await update_count(group.id, keys)  # 更新统计次数
-                    update_cd(group.id, "replyCD")  # 更新cd
-                return
+    for name, key_regex in group_keywords.items():
+        p = re.findall(key_regex, text)
+        if p:
+            print(f"Found in {name}")
+            file = rand_pic(name)
+            await app.sendGroupMessage(group, MessageChain.create([
+                Image.fromLocalFile(file[0])
+            ]))
+            set_group_flag(group.id)
+            return
+
+    # for keys in group_keywords:  # 在字典中遍历查找
+    #     for e in range(len(group_keywords[keys])):  # 遍历名称
+    #         if text == group_keywords[keys][e]:  # 若命中名称
+    #             if not is_in_cd(group.id, "replyCD") or is_superman(member.id):  # 判断是否在回复图片的cd中
+    #                 pic_name = rand_pic(keys)
+    #                 await app.sendGroupMessage(group, MessageChain.create([
+    #                     Image.fromLocalFile(os.path.join(config.pic_path, keys, pic_name))
+    #                 ]))
+    #                 # await update_count(group.id, keys)  # 更新统计次数
+    #                 update_cd(group.id, "replyCD")  # 更新cd
+    #             return
+    #
+    # for keys in group_keywords:  # 在字典中遍历查找
+    #     for e in range(len(group_keywords[keys])):  # 遍历名称
+    #         if group_keywords[keys][e] in text:  # 若命中名称
+    #             if not is_in_cd(group.id, "replyCD") or is_superman(member.id):  # 判断是否在回复图片的cd中
+    #                 twice_lp = text.startswith("多")
+    #                 if not exp_enabled(group.id):
+    #                     twice_lp = False
+    #                 if twice_lp:
+    #                     # status = consume_pan(member.id, r, twice_lp_pan_amount, PAN_TWICE_LP_CONSUME)
+    #                     status = False, False
+    #                     if status[0]:
+    #                         pics = [rand_pic(keys), rand_pic(keys)]
+    #                         await app.sendGroupMessage(group, MessageChain.create([
+    #                             Plain(f"你吃掉了{twice_lp_pan_amount}个面包，还剩{status[1]}个面包哦~"),
+    #                             Image.fromLocalFile(os.path.join(config.pic_path, keys, pics[0])),
+    #                             Image.fromLocalFile(os.path.join(config.pic_path, keys, pics[1]))
+    #                         ]))
+    #                     else:
+    #                         if status[1] == 0:
+    #                             stat_text = "你没有面包了呢~"
+    #                         else:
+    #                             stat_text = f"只剩{status[1]}个面包了呢~"
+    #                         await app.sendGroupMessage(group, MessageChain.create([
+    #                             Plain(f"呜呜呜，面包不够了~你需要{twice_lp_pan_amount}个面包，但是{stat_text}")
+    #                         ]))
+    #                 else:
+    #                     pic_name = rand_pic(keys)
+    #                     await app.sendGroupMessage(group, MessageChain.create([
+    #                         Image.fromLocalFile(os.path.join(config.pic_path, keys, pic_name))
+    #                     ]))
+    #                 # await update_count(group.id, keys)  # 更新统计次数
+    #                 update_cd(group.id, "replyCD")  # 更新cd
+    #             return
 
 
 # 超管处理器
@@ -229,6 +258,7 @@ async def flag_handler(group: Group):
 
 if __name__ == "__main__":
     try:
+        init_mocabot()
         gapp.launch_blocking()
     except KeyboardInterrupt:
         print('Terminating App...')

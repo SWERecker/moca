@@ -4,6 +4,7 @@ import random
 import time
 
 import pymongo
+import redis
 from graia.application import MessageChain
 from graia.application.message.elements.internal import Plain, Image
 from pypinyin import lazy_pinyin
@@ -21,9 +22,46 @@ ucf = db1['user_config']
 gkw = db1['group_keyword']
 gc = db1['group_count']
 
+cache_pool = redis.ConnectionPool(host='localhost', port=6379, db=3, decode_responses=True)
+rc = redis.Redis(connection_pool=cache_pool)
 
-def init_group_config(group_id: int):
-    print(f'init group {group_id}')
+
+def init_group(group_id: int):
+    """
+    初始化群
+    :param group_id: 群号
+    :return:
+    """
+    if not gol.value_exist(f"KEYWORD_{group_id}"):
+        print(f'=========初始化 {group_id}=========')
+        d = gkw.find_one({"group": 10000}, {"_id": 0})
+        template_keyword = d["keyword"]
+
+        data = {"keyword": template_keyword, "group": group_id}
+        gkw.insert_one(data)
+
+        gol.set_value(f"KEYWORD_{group_id}", template_keyword)
+
+        gc.insert_one({"group": group_id})
+
+
+def init_mocabot():
+    """
+    初始化机器人.
+
+    :return: None
+    """
+    # 初始化所有群的关键词列表到内存
+    d = gkw.find({}, {"_id": 0})
+    for n in d:
+        gol.set_value(f"KEYWORD_{n['group']}", n['keyword'])
+
+    # 初始化所有Config至内存
+    d = gcf.find({}, {"_id": 0})
+    for n in d:
+        group_id = n['group_id']
+        del n['group_id']
+        gol.set_value(f"CONFIG_{group_id}", n)
 
 
 def update_config(group_id: int, arg: str, value):
@@ -35,9 +73,16 @@ def update_config(group_id: int, arg: str, value):
     :param value: 参数值
     :return: 新参数值
     """
+    # 更新数据库中Config
     query = {"group_id": group_id}
     new_value = {"$set": {arg: value}}
     gcf.update_one(query, new_value)
+
+    # 更新内存中Config
+    mem_config = gol.get_value(f"CONFIG_{group_id}")
+    mem_config[arg] = value
+    gol.set_value(f"CONFIG_{group_id}", mem_config)
+
     return value
 
 
@@ -49,19 +94,12 @@ def fetch_config(group_id: int, arg: str):
     :param arg: 参数名称 (str)
     :return: 参数值 (any), 若存在config但查询的参数不存在返回-2，若不存在config即群组config未初始化返回-1
     """
-    query_config = {"group_id": group_id}
-    if not gcf.count_documents(query_config) == 1:
-        init_group_config(group_id)
-
-    res = gcf.find({"group_id": group_id}, {arg: 1})
     try:
-        value = res[0].get(arg)
-        if value is None:
-            return -2
-        else:
-            return value
-    except IndexError:
+        return gol.get_value(f"CONFIG_{group_id}")[arg]
+    except TypeError:
         return -1
+    except KeyError:
+        return -2
 
 
 def update_cd(group_id: int, cd_type: str, cd_time=0):
@@ -82,7 +120,7 @@ def update_cd(group_id: int, cd_type: str, cd_time=0):
 
 def update_user_cd(user_id: int, cd_type: str, cd_time: int = 0):
     """
-    更新群组的某类cd.
+    更新用户的某类cd.
 
     :param user_id: QQ号(int)
     :param cd_type: 参数名称(str)
@@ -90,12 +128,6 @@ def update_user_cd(user_id: int, cd_type: str, cd_time: int = 0):
     :return: None
     """
     gol.set_value(f'in_{cd_type}_user_cd_{user_id}', get_timestamp() + cd_time)
-
-    # if not cd_time == 0:
-    #    gol.set_value(f'in_{cd_type}_cd_{user_id}', get_timestamp() + cd_time)
-    # else:
-    #    group_cd = fetch_config(user_id, cd_type)
-    #    gol.set_value(f'in_{cd_type}_cd_{user_id}', get_timestamp() + group_cd)
 
 
 def is_in_cd(group_id: int, cd_type: str) -> bool:
@@ -183,11 +215,7 @@ def fetch_group_keyword(group: int) -> dict:
 
     :return: 关键词列表(dict)
     """
-    try:
-        res = gkw.find({"group": group})
-        return res[0]['keyword']
-    except IndexError:
-        return {}
+    return gol.get_value(f"KEYWORD_{group}")
 
 
 def fetch_group_count(group: int) -> dict:
@@ -200,7 +228,10 @@ def fetch_group_count(group: int) -> dict:
     """
     try:
         res = gc.find({"group": group})
-        return res[0]['count']
+        data = res[0]
+        del data['_id']
+        del data['group']
+        return data
     except IndexError:
         return {}
 
@@ -322,18 +353,15 @@ def exp_enabled(group_id: int) -> bool:
             return True
 
 
-def rand_pic(name: str) -> str:
+def rand_pic(name: str, count=1) -> list:
     """
-    从图片库中随机抽取一张
+    从图片库中随机抽取{count}张
 
     :param name: 名称
-    :return: 图片文件名（名称不存在时返回"NAME_NOT_FOUND"）
+    :param count: 抽取的数量
+    :return: 文件名列表
     """
-    if not os.path.isdir(os.path.join(config.pic_path, name)):
-        return "NAME_NOT_FOUND"
-    file_list = os.listdir(os.path.join(config.pic_path, name))
-    random.shuffle(file_list)
-    return random.choice(file_list)
+    return rc.srandmember(name, count)
 
 
 def user_manual() -> MessageChain:
@@ -369,3 +397,20 @@ def random_moca_keai():
     return MessageChain.create([
         Image.fromLocalFile(os.path.join(config.resource_path, 'keai', random_file))
     ])
+
+
+def update_count(group: int, name: str):
+    """
+    更新统计次数.
+
+    :param group: 群号
+    :param name: 要+1的名称
+    :return: None
+    """
+    query = {"group": group}
+    new_value = {"$inc": {name: 1}}
+    gc.update_one(query, new_value)
+
+
+if __name__ == "__main__":
+    init_mocabot()

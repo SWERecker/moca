@@ -15,6 +15,7 @@ def set_value(key, value):
     :param value: Value
     :return:
     """
+    # print(f'set: {key} to {value}')
     _global_dict[key] = value
 
 
