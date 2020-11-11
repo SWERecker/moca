@@ -1,24 +1,13 @@
 import asyncio
-import json
-import os
-import random
 import re
-import time
-
+from function import *
 from graia.application import GraiaMiraiApplication, Session, GroupMessage, MessageChain, Group, Member
 from graia.application.group import MemberPerm
 from graia.application.message.elements.internal import Plain, At, Image
 from graia.broadcast import Broadcast, ExecutionStop
 from graia.broadcast.builtin.decoraters import Depend
 
-import global_var as gol
-import config
-from function import is_superman, contains, is_in_user_cd, update_user_cd, is_in_cd, update_cd, sort_dict, \
-    create_dict_pic, user_manual, set_group_flag, fetch_group_count, get_group_flag, fetch_group_keyword, exp_enabled, \
-    rand_pic, init_mocabot, init_group
-
 loop = asyncio.get_event_loop()
-
 bcc = Broadcast(loop=loop)
 
 gapp = GraiaMiraiApplication(
@@ -33,6 +22,7 @@ gapp = GraiaMiraiApplication(
 )
 
 debug_mode = True
+TWICE_LP_PAN_AMOUNT = 3
 
 
 #   判断是否开启Debug模式
@@ -102,10 +92,8 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
         voice_file = random.choice(os.listdir(os.path.join('resource', 'voice')))
         with open(os.path.join('resource', 'voice', voice_file), 'rb')as voice_bin_file:
             voice = await app.uploadVoice(voice_bin_file)
-        await app.sendGroupMessage(group, MessageChain.create([
-            voice
-        ]))
-        update_user_cd(member.id, "voice", 30)
+        await app.sendGroupMessage(group, MessageChain.create([voice]))
+        update_user_cd(member.id, "voice", 10)
         set_group_flag(group.id)
         return
 
@@ -150,29 +138,41 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
     #   遍历查询是否在关键词列表中并发送图片
     #   权限：成员
     #   是否At机器人：否
-    group_keywords = fetch_group_keyword(group.id)
-    if is_in_cd(group.id, "replyCD"):
-        return
-    for name, key_regex in group_keywords.items():
-        p = re.fullmatch(key_regex, text)
-        if p:
-            print(f"Found in {name}")
-            file = rand_pic(name)
-            await app.sendGroupMessage(group, MessageChain.create([
-                Image.fromLocalFile(file[0])
-            ]))
-            return
+    if not is_in_cd(group.id, "replyCD"):
+        group_keywords = fetch_group_keyword(group.id)
+        twice_lp = text.startswith("多")
 
-    for name, key_regex in group_keywords.items():
-        p = re.findall(key_regex, text)
-        if p:
-            print(f"Found in {name}")
-            file = rand_pic(name)
-            await app.sendGroupMessage(group, MessageChain.create([
-                Image.fromLocalFile(file[0])
-            ]))
-            set_group_flag(group.id)
-            return
+        if twice_lp:
+            pass
+            pic_num = 2
+        else:
+            pic_num = 1
+
+            # 判断面包是否足够
+            # if not enough:
+            #     return  # not enough
+            # else:
+            #     # 面包-3,获取剩余面包
+
+        for name, key_regex in group_keywords.items():
+            p = re.fullmatch(key_regex, text)
+            if p:
+                file_list = rand_pic(name, pic_num)
+                d = [Image.fromLocalFile(e) for e in file_list]
+                await app.sendGroupMessage(group, MessageChain.create(d))
+                update_count(group.id, name)
+                set_group_flag(group.id)
+                return
+
+        for name, key_regex in group_keywords.items():
+            p = re.findall(key_regex, text)
+            if p:
+                file_list = rand_pic(name, pic_num)
+                d = [Image.fromLocalFile(e) for e in file_list]
+                await app.sendGroupMessage(group, MessageChain.create(d))
+                update_count(group.id, name)
+                set_group_flag(group.id)
+                return
 
     # for keys in group_keywords:  # 在字典中遍历查找
     #     for e in range(len(group_keywords[keys])):  # 遍历名称

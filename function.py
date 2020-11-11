@@ -11,9 +11,12 @@ from pypinyin import lazy_pinyin
 from PIL import Image as ImageLib
 from PIL import ImageDraw, ImageFont
 from prettytable import PrettyTable
-
-import config
 import global_var as gol
+
+if not os.path.isfile('config.py'):
+    import config_template as config
+else:
+    import config
 
 client = pymongo.MongoClient(host='localhost', port=27017)
 db1 = client['moca']
@@ -56,13 +59,6 @@ def init_mocabot():
     for n in d:
         gol.set_value(f"KEYWORD_{n['group']}", n['keyword'])
 
-    # 初始化所有Config至内存
-    d = gcf.find({}, {"_id": 0})
-    for n in d:
-        group_id = n['group_id']
-        del n['group_id']
-        gol.set_value(f"CONFIG_{group_id}", n)
-
 
 def update_config(group_id: int, arg: str, value):
     """
@@ -74,14 +70,9 @@ def update_config(group_id: int, arg: str, value):
     :return: 新参数值
     """
     # 更新数据库中Config
-    query = {"group_id": group_id}
+    query = {"group": group_id}
     new_value = {"$set": {arg: value}}
     gcf.update_one(query, new_value)
-
-    # 更新内存中Config
-    mem_config = gol.get_value(f"CONFIG_{group_id}")
-    mem_config[arg] = value
-    gol.set_value(f"CONFIG_{group_id}", mem_config)
 
     return value
 
@@ -94,12 +85,15 @@ def fetch_config(group_id: int, arg: str):
     :param arg: 参数名称 (str)
     :return: 参数值 (any), 若存在config但查询的参数不存在返回-2，若不存在config即群组config未初始化返回-1
     """
+    res = gcf.find({"group": group_id}, {arg: 1})
     try:
-        return gol.get_value(f"CONFIG_{group_id}")[arg]
-    except TypeError:
+        value = res[0].get(arg)
+        if value is None:
+            return -2
+        else:
+            return value
+    except IndexError:
         return -1
-    except KeyError:
-        return -2
 
 
 def update_cd(group_id: int, cd_type: str, cd_time=0):
@@ -413,4 +407,4 @@ def update_count(group: int, name: str):
 
 
 if __name__ == "__main__":
-    init_mocabot()
+    print(update_config(277866700, "replyCD", 20))

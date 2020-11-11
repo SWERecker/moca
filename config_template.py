@@ -10,8 +10,8 @@ appid = 'appid'  # 填写你的appid
 secret_key = 'key'  # 填写你的密钥
 # baidu-translate
 
-pic_path = "C:\\mirai\\pic\\"
-temp_path = "D:\\temp\\"
+pic_path = "/www/moca/pic/"
+temp_path = "/www/moca/temp"
 resource_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resource")
 
 random_url = 'https://api.mocabot.cn/api'
