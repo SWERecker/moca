@@ -104,8 +104,8 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
         sorted_keyword_list = sort_dict(fetch_group_count(group.id))
         create_dict_pic(sorted_keyword_list, f'{group.id}_count', '次数', sort_by_value=True)
         await app.sendGroupMessage(group, MessageChain.create([
-            Image.fromLocalFile(os.path.join(config.temp_path, f'{group.id}_count.png'))
-        ]))
+            Image.fromLocalFile(os.path.join(config.temp_path, f'{group.id}_count.png'))]
+        ))
         set_group_flag(group.id)
         return
 

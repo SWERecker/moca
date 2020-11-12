@@ -37,15 +37,15 @@ def init_group(group_id: int):
     """
     if not gol.value_exist(f"KEYWORD_{group_id}"):
         print(f'=========初始化 {group_id}=========')
-        d = gkw.find_one({"group": 10000}, {"_id": 0})
-        template_keyword = d["keyword"]
+        d = gkw.find_one({"group": "key_template"}, {"_id": 0, "group": 0})
+        d["group"] = group_id
+        gkw.insert_one(d)
 
-        data = {"keyword": template_keyword, "group": group_id}
-        gkw.insert_one(data)
+        gol.set_value(f"KEYWORD_{group_id}", d)
 
-        gol.set_value(f"KEYWORD_{group_id}", template_keyword)
-
-        gc.insert_one({"group": group_id})
+        d = gcf.find_one({"group": "config_template"}, {"_id": 0, "group": 0})
+        d["group"] = group_id
+        gcf.insert_one(d)
 
 
 def init_mocabot():
