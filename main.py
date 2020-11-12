@@ -7,6 +7,8 @@ from graia.application.message.elements.internal import Plain, At, Image
 from graia.broadcast import Broadcast, ExecutionStop
 from graia.broadcast.builtin.decoraters import Depend
 
+from functions.pan import pan_change
+
 loop = asyncio.get_event_loop()
 bcc = Broadcast(loop=loop)
 
@@ -118,7 +120,19 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
 async def group_manager_message_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group):
     if get_group_flag(group.id):
         return
-    print('Manager Message')
+
+    text = message.asDisplay().replace(" ", "").lower()
+
+    if text.startswith("设置图片cd"):
+        pass
+    if text.startswith("设置复读cd"):
+        pass
+    if text.startswith("查看当前参数"):
+        pass
+    if text.startswith("增加关键词") or text.startswith("添加关键词"):
+        pass
+    if text.startswith("删除关键词"):
+        pass
 
 
 # 常规消息处理器
@@ -131,9 +145,71 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
 
     text = message.asDisplay().replace(' ', '').lower()
 
+    #   查询使用说明
+    #   权限：成员
+    #   是否At机器人：否
     if contains("使用说明", "help", text):
         await app.sendGroupMessage(group, user_manual())
         set_group_flag(group.id)
+
+    #   设置lp
+    #   权限：成员
+    #   是否At机器人：否
+    if text.replace("我", "w").replace("老婆", "lp").startswith("wlp是"):
+        if not len(text) > 4:
+            return
+        lp_name = text[4:]
+        res = user_set_lp(member.id, group.id, lp_name)
+        if res[0]:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"用户{member.name}设置lp为：{res[1]}")
+            ]))
+        else:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain("az，这个群没有找到你lp呢...")
+            ]))
+
+    #   发送lp
+    #   权限：成员
+    #   是否At机器人：否
+    if not is_in_cd(group.id, "replyCD"):
+        if ("来点" in text) and ("lp" in text.replace("老婆", "lp")):
+            twice_lp = text.startswith("多")
+            lp_name = fetch_user_lp(member.id, group.id)
+
+            if lp_name == "NOT_SET":
+                await app.sendGroupMessage(group, MessageChain.create([
+                    Plain("az，似乎你还没有设置lp呢~\n用”wlp是xxx“来设置一个吧~\n发送 @モカ 关键词 来查看可以设置的列表哦~")
+                ]))
+                return
+
+            if lp_name == "NOT_FOUND":
+                await app.sendGroupMessage(group, MessageChain.create([
+                    Plain("az，这个群似乎看不了你lp呢...")
+                ]))
+                return
+
+            pic_num = 1
+            res_text = ""
+            if twice_lp:
+                res = pan_change(member.id, -TWICE_LP_PAN_AMOUNT)
+                if res[0]:
+                    pic_num = 2
+                    res_text = f"面包-{TWICE_LP_PAN_AMOUNT}，还剩{res[1]}个面包~"
+                else:
+                    await app.sendGroupMessage(group, MessageChain.create([
+                        Plain("az，你的面包不够了呢QAQ")
+                    ]))
+                    return
+
+            file_list = rand_pic(lp_name, pic_num)
+            d = [Image.fromLocalFile(e) for e in file_list]
+            if twice_lp:
+                d.insert(0, Plain(res_text))
+            await app.sendGroupMessage(group, MessageChain.create(d))
+            update_count(group.id, lp_name)
+            set_group_flag(group.id)
+            return
 
     #   遍历查询是否在关键词列表中并发送图片
     #   权限：成员
@@ -141,84 +217,45 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
     if not is_in_cd(group.id, "replyCD"):
         group_keywords = fetch_group_keyword(group.id)
         twice_lp = text.startswith("多")
-
+        pic_num = 1
+        res_text = ""
         if twice_lp:
-            pass
-            pic_num = 2
-        else:
-            pic_num = 1
+            res = pan_change(member.id, -TWICE_LP_PAN_AMOUNT)
+            if res[0]:
+                pic_num = 2
+                res_text = f"面包-{TWICE_LP_PAN_AMOUNT}，还剩{res[1]}个面包~"
+            else:
+                await app.sendGroupMessage(group, MessageChain.create([
+                    Plain("az，你的面包不够了呢QAQ")
+                ]))
+                return
 
-            # 判断面包是否足够
-            # if not enough:
-            #     return  # not enough
-            # else:
-            #     # 面包-3,获取剩余面包
+        req_name = ""
+        key_found = False
 
         for name, key_regex in group_keywords.items():
             p = re.fullmatch(key_regex, text)
             if p:
-                file_list = rand_pic(name, pic_num)
-                d = [Image.fromLocalFile(e) for e in file_list]
-                await app.sendGroupMessage(group, MessageChain.create(d))
-                update_count(group.id, name)
-                set_group_flag(group.id)
-                return
+                key_found = True
+                req_name = name
 
-        for name, key_regex in group_keywords.items():
-            p = re.findall(key_regex, text)
-            if p:
-                file_list = rand_pic(name, pic_num)
-                d = [Image.fromLocalFile(e) for e in file_list]
-                await app.sendGroupMessage(group, MessageChain.create(d))
-                update_count(group.id, name)
-                set_group_flag(group.id)
-                return
+        if not key_found:
+            for name, key_regex in group_keywords.items():
+                p = re.findall(key_regex, text)
+                if p:
+                    key_found = True
+                    req_name = name
 
-    # for keys in group_keywords:  # 在字典中遍历查找
-    #     for e in range(len(group_keywords[keys])):  # 遍历名称
-    #         if text == group_keywords[keys][e]:  # 若命中名称
-    #             if not is_in_cd(group.id, "replyCD") or is_superman(member.id):  # 判断是否在回复图片的cd中
-    #                 pic_name = rand_pic(keys)
-    #                 await app.sendGroupMessage(group, MessageChain.create([
-    #                     Image.fromLocalFile(os.path.join(config.pic_path, keys, pic_name))
-    #                 ]))
-    #                 # await update_count(group.id, keys)  # 更新统计次数
-    #                 update_cd(group.id, "replyCD")  # 更新cd
-    #             return
-    #
-    # for keys in group_keywords:  # 在字典中遍历查找
-    #     for e in range(len(group_keywords[keys])):  # 遍历名称
-    #         if group_keywords[keys][e] in text:  # 若命中名称
-    #             if not is_in_cd(group.id, "replyCD") or is_superman(member.id):  # 判断是否在回复图片的cd中
-    #                 twice_lp = text.startswith("多")
-    #                 if not exp_enabled(group.id):
-    #                     twice_lp = False
-    #                 if twice_lp:
-    #                     # status = consume_pan(member.id, r, twice_lp_pan_amount, PAN_TWICE_LP_CONSUME)
-    #                     status = False, False
-    #                     if status[0]:
-    #                         pics = [rand_pic(keys), rand_pic(keys)]
-    #                         await app.sendGroupMessage(group, MessageChain.create([
-    #                             Plain(f"你吃掉了{twice_lp_pan_amount}个面包，还剩{status[1]}个面包哦~"),
-    #                             Image.fromLocalFile(os.path.join(config.pic_path, keys, pics[0])),
-    #                             Image.fromLocalFile(os.path.join(config.pic_path, keys, pics[1]))
-    #                         ]))
-    #                     else:
-    #                         if status[1] == 0:
-    #                             stat_text = "你没有面包了呢~"
-    #                         else:
-    #                             stat_text = f"只剩{status[1]}个面包了呢~"
-    #                         await app.sendGroupMessage(group, MessageChain.create([
-    #                             Plain(f"呜呜呜，面包不够了~你需要{twice_lp_pan_amount}个面包，但是{stat_text}")
-    #                         ]))
-    #                 else:
-    #                     pic_name = rand_pic(keys)
-    #                     await app.sendGroupMessage(group, MessageChain.create([
-    #                         Image.fromLocalFile(os.path.join(config.pic_path, keys, pic_name))
-    #                     ]))
-    #                 # await update_count(group.id, keys)  # 更新统计次数
-    #                 update_cd(group.id, "replyCD")  # 更新cd
-    #             return
+        if key_found:
+            file_list = rand_pic(req_name, pic_num)
+            d = [Image.fromLocalFile(e) for e in file_list]
+            if twice_lp:
+                d.insert(0, Plain(res_text))
+            await app.sendGroupMessage(group, MessageChain.create(d))
+            update_count(group.id, req_name)
+            set_group_flag(group.id)
+            update_cd(group.id, "replyCD")
+            return
 
 
 # 超管处理器
@@ -243,9 +280,10 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
     at_data = message.get(At)[0].dict()
     at_target: int = at_data['target']
 
-    await app.sendGroupMessage(group, MessageChain.create([
-        Plain(f'At target: {at_target}')
-    ]))
+    text = message.asDisplay().replace(' ', '').lower()
+
+    if contains("换lp次数", text):
+        pass
 
 
 @bcc.receiver(GroupMessage, headless_decoraters=[

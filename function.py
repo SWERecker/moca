@@ -406,5 +406,43 @@ def update_count(group: int, name: str):
     gc.update_one(query, new_value)
 
 
-if __name__ == "__main__":
-    print(update_config(277866700, "replyCD", 20))
+def user_set_lp(qq: int, group: int, lp_name: str) -> list:
+    """
+    用户设置lp.
+
+    :param qq: QQ号
+    :param group: QQ群号
+    :param lp_name: 要设置的lp名称
+    :return: [True, 设置的名称](成功), [False, ""](未找到)
+    """
+    group_keyword = fetch_group_keyword(group)
+    # lp_name = find_lp(lp_name, group_keyword)
+    if lp_name == "NOT_FOUND":
+        return [False, ""]
+    else:
+        res = ucf.update_one({"qq": qq}, {"$set": {"lp": lp_name}})
+        if res.modified_count == 0:
+            ucf.insert_one({"qq": qq, "lp": lp_name})
+        return [True, lp_name]
+
+
+def fetch_user_lp(qq: int, group: int) -> list:
+    """
+    获取用户设置的lp.
+
+    :param qq: QQ号
+    :param group: QQ群号
+    :return: lp_name, 未设置：NOT_SET, 未找到: NOT_FOUND
+    """
+    group_keyword = fetch_group_keyword(group)
+    res = ucf.find_one({"qq": qq}, {"lp": 1})
+    try:
+        lp_name = res['lp']
+        if lp_name in group_keyword:
+            return lp_name
+        else:
+            return "NOT_FOUND"
+    except TypeError:
+        return "NOT_SET"
+    except KeyError:
+        return "NOT_SET"
