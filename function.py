@@ -37,15 +37,24 @@ def init_group(group_id: int):
     """
     if not gol.value_exist(f"KEYWORD_{group_id}"):
         print(f'=========初始化 {group_id}=========')
-        d = gkw.find_one({"group": "key_template"}, {"_id": 0, "group": 0})
-        d["group"] = group_id
-        gkw.insert_one(d)
+        with open(
+                os.path.join(config.resource_path, "template", "key_template.json"),
+                'r',
+                encoding='utf-8'
+        )as key_template_file:
+            key_template = json.load(key_template_file)
+        key_template["group"] = group_id
+        gkw.insert_one(key_template)
+        gol.set_value(f"KEYWORD_{group_id}", key_template['keyword'])
 
-        gol.set_value(f"KEYWORD_{group_id}", d)
-
-        d = gcf.find_one({"group": "config_template"}, {"_id": 0, "group": 0})
-        d["group"] = group_id
-        gcf.insert_one(d)
+        with open(
+                os.path.join(config.resource_path, "template", "config_template.json"),
+                'r',
+                encoding='utf-8'
+        )as config_template_file:
+            config_template = json.load(config_template_file)
+        config_template["group"] = group_id
+        gcf.insert_one(config_template)
 
 
 def init_mocabot():
