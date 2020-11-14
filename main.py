@@ -123,16 +123,114 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
 
     text = message.asDisplay().replace(" ", "").lower()
 
-    if text.startswith("设置图片cd"):
-        pass
-    if text.startswith("设置复读cd"):
-        pass
-    if text.startswith("查看当前参数"):
-        pass
-    if text.startswith("增加关键词") or text.startswith("添加关键词"):
-        pass
+    #   设置图片cd
+    #   权限：管理员/群主
+    #   是否At机器人：否
+    if text.startswith("设置图片cd") and len(text) > 6:
+        paras = text[6:]
+        try:
+            sec = paras.rstrip("秒").rstrip("s")
+            if sec < 5:
+                await app.sendGroupMessage(group, MessageChain.create([
+                    Plain(f"错误：最短图片cd5秒")
+                ]))
+                return
+            update_config(group.id, "replyCD", sec)
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"当前图片cd：{sec}秒")
+            ]))
+        except ValueError:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain("错误：参数错误\n示例：设置图片cd20秒")
+            ]))
+        set_group_flag(group.id)
+
+    #   设置复读cd
+    #   权限：管理员/群主
+    #   是否At机器人：否
+    if text.startswith("设置复读cd") and len(text) > 6:
+        paras = text[6:]
+        try:
+            sec = paras.rstrip("秒").rstrip("s")
+            if sec < 120:
+                await app.sendGroupMessage(group, MessageChain.create([
+                    Plain(f"错误：最短复读cd120秒")
+                ]))
+                return
+            update_config(group.id, "repeatCD", sec)
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"当前复读cd：{sec}秒")
+            ]))
+        except ValueError:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain("错误：参数错误\n示例：设置复读cd20秒")
+            ]))
+        set_group_flag(group.id)
+
+    #   添加关键词
+    #   权限：管理员/群主
+    #   是否At机器人：否
+    if (text.startswith("增加关键词") or text.startswith("添加关键词")) and len(text) > 5:
+        paras = text[5:].replace('，', ',').split(',')
+        if not len(paras) == 2:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain("错误：参数错误\n示例：添加关键词志崎樺音，来点non酱")
+            ]))
+            return
+
+        if check_para(paras[0]) and check_para(paras[1]):
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain("错误：参数中禁止含有特殊符号!")
+            ]))
+            return
+
+        res = append_keyword(group.id, paras)
+        if res == 0:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"向{paras[0]}中添加了关键词：{paras[1]}")
+            ]))
+        elif res == -1:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"错误：关键词列表中未找到{paras[0]}")
+            ]))
+        elif res == -2:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"错误：{paras[0]}的关键词列表中已存在能够识别 {paras[1]} 的关键词了")
+            ]))
+        set_group_flag(group.id)
+
+    #   删除关键词
+    #   权限：管理员/群主
+    #   是否At机器人：否
     if text.startswith("删除关键词"):
+        paras = text[5:].replace('，', ',').split(',')
+        if not len(paras) == 2:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain("错误：参数错误\n示例：删除关键词志崎樺音，来点non酱")
+            ]))
+            return
+
+        res = remove_keyword(group.id, paras)
+        if res == 0:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"向{paras[0]}中添加了关键词：{paras[1]}")
+            ]))
+        elif res == -1:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"错误：关键词列表中未找到{paras[0]}")
+            ]))
+        elif res == -2:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"错误：{paras[0]}的关键词列表中已存在能够识别 {paras[1]} 的关键词了")
+            ]))
+        set_group_flag(group.id)
+
+    #   查看当前参数
+    #   权限：管理员/群主
+    #   是否At机器人：否
+    if text == "查看当前参数":
         pass
+        set_group_flag(group.id)
 
 
 # 常规消息处理器
@@ -234,17 +332,21 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
         key_found = False
 
         for name, key_regex in group_keywords.items():
-            p = re.fullmatch(key_regex, text)
-            if p:
-                key_found = True
-                req_name = name
-
-        if not key_found:
-            for name, key_regex in group_keywords.items():
-                p = re.findall(key_regex, text)
+            if not key_regex == '':
+                p = re.fullmatch(key_regex, text)
                 if p:
                     key_found = True
                     req_name = name
+                    break
+
+        if not key_found:
+            for name, key_regex in group_keywords.items():
+                if not key_regex == '':
+                    p = re.findall(key_regex, text)
+                    if p:
+                        key_found = True
+                        req_name = name
+                        break
 
         if key_found:
             file_list = rand_pic(req_name, pic_num)

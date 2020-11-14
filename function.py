@@ -1,6 +1,7 @@
 import json
 import os
 import random
+import re
 import time
 
 import pymongo
@@ -27,6 +28,8 @@ gc = db1['group_count']
 
 cache_pool = redis.ConnectionPool(host='localhost', port=6379, db=3, decode_responses=True)
 rc = redis.Redis(connection_pool=cache_pool)
+
+forbidden_signs = "/[]-^?*.$\\|"
 
 
 def init_group(group_id: int):
@@ -78,11 +81,7 @@ def update_config(group_id: int, arg: str, value):
     :param value: 参数值
     :return: 新参数值
     """
-    # 更新数据库中Config
-    query = {"group": group_id}
-    new_value = {"$set": {arg: value}}
-    gcf.update_one(query, new_value)
-
+    gcf.update_one({"group": group_id}, {"$set": {arg: value}})
     return value
 
 
@@ -455,3 +454,75 @@ def fetch_user_lp(qq: int, group: int) -> list:
         return "NOT_SET"
     except KeyError:
         return "NOT_SET"
+
+
+def check_para(para: str) -> bool:
+    """
+    要检查的字符串.
+
+    :param para: 字符串
+    :return: 字符串不正常返回True，正常返回False
+    """
+    global forbidden_signs
+    for c in para:
+        if c in forbidden_signs:
+            return True
+    return False
+
+
+def append_keyword(group: int, paras: list):
+    """
+
+    :param group: 群号
+    :param paras: 参数组[要添加的对象, 关键词]
+    :return: -2: 关键词已能识别; -1: 没有此对象; 0: 添加成功
+    """
+    try:
+        group_keywords = fetch_group_keyword(group)
+        name = paras[0]
+        key = paras[1]
+
+        if group_keywords[name] == '':
+            group_keywords[name] = key
+        else:
+            p = re.findall(group_keywords[name], key)
+            if p:
+                return -2
+            group_keywords[name] += f"|{key}"
+
+        gol.set_value(f"KEYWORD_{group}", group_keywords)
+        gkw.find_one_and_update({"group": group}, {"$set": {"keyword": group_keywords}})
+        return 0
+    except KeyError:
+        return -1
+
+
+def remove_keyword(group: int, paras: list):
+    """
+    删除关键词.
+
+    :param group: 群号
+    :param paras: 参数组[要删除的对象, 关键词]
+    :return: -2: 未找到此关键词; -1: 没有此对象; 0: 删除成功
+    """
+    try:
+        group_keywords = fetch_group_keyword(group)
+        name = paras[0]
+        key = paras[1]
+
+        original_keywords = group_keywords[name].split('|')
+        if key in original_keywords:
+            k_index = original_keywords.index(key)
+            del original_keywords[k_index]
+            group_keywords[name] = ""
+            for key in original_keywords:
+                group_keywords[name] += f"{key}|"
+            group_keywords[name] = group_keywords[name].rstrip("|")
+            gol.set_value(f"KEYWORD_{group}", group_keywords)
+            gkw.find_one_and_update({"group": group}, {"$set": {"keyword": group_keywords}})
+            return 0
+        else:
+            return -2
+    except KeyError:
+        return -1
+
