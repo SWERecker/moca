@@ -213,7 +213,7 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
         res = remove_keyword(group.id, paras)
         if res == 0:
             await app.sendGroupMessage(group, MessageChain.create([
-                Plain(f"向{paras[0]}中添加了关键词：{paras[1]}")
+                Plain(f"删除了{paras[0]}中的关键词：{paras[1]}")
             ]))
         elif res == -1:
             await app.sendGroupMessage(group, MessageChain.create([
@@ -221,7 +221,7 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
             ]))
         elif res == -2:
             await app.sendGroupMessage(group, MessageChain.create([
-                Plain(f"错误：{paras[0]}的关键词列表中已存在能够识别 {paras[1]} 的关键词了")
+                Plain(f"错误：{paras[0]}的关键词列表中未找到关键词 {paras[1]}")
             ]))
         set_group_flag(group.id)
 
