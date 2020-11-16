@@ -1,3 +1,4 @@
+import difflib
 import json
 import os
 import random
@@ -423,8 +424,7 @@ def user_set_lp(qq: int, group: int, lp_name: str) -> list:
     :param lp_name: 要设置的lp名称
     :return: [True, 设置的名称](成功), [False, ""](未找到)
     """
-    group_keyword = fetch_group_keyword(group)
-    # lp_name = find_lp(lp_name, group_keyword)
+    lp_name = match_lp(group, lp_name)
     if lp_name == "NOT_FOUND":
         return [False, ""]
     else:
@@ -526,3 +526,42 @@ def remove_keyword(group: int, paras: list):
     except KeyError:
         return -1
 
+
+def fetch_clp_times(uid: int) -> int:
+    """
+    获取换lp的次数.
+
+    :param uid: 用户QQ号
+    :return: 换lp次数
+    """
+    try:
+        res = ucf.find_one({"qq": uid}, {"clp_time": 1})
+        return res['clp_time']
+    except KeyError:
+        return 0
+
+
+def match_lp(group: int, lp_name: str) -> str:
+    """
+    匹配最接近的lp.
+
+    :param group: 群组ID
+    :param lp_name: 名称
+    :return: 最接近的名称，若匹配不到则返回NOT_FOUND
+    """
+    simi_dict = {}
+    keyword_list = fetch_group_keyword(group)
+    for name, keys in keyword_list.items():  # 在字典中遍历查找
+        key_list = keys.split('|')
+        for key in key_list:
+            seed = difflib.SequenceMatcher(None, str(lp_name), key).quick_ratio()
+            if seed > 0.6:
+                if name in simi_dict:
+                    new_seed = simi_dict[name] + seed
+                    simi_dict.update({name: new_seed})
+                else:
+                    simi_dict.update({name: seed})
+    if bool(simi_dict):
+        return sorted(simi_dict, key=simi_dict.__getitem__, reverse=True)[0]
+    else:
+        return "NOT_FOUND"

@@ -169,6 +169,29 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
         set_group_flag(group.id)
         return
 
+    #   设置复读概率
+    #   权限：管理员/群主
+    #   是否At机器人：否
+    if text.startswith("设置复读概率") and len(text) > 6:
+        paras = text[6:]
+        try:
+            chance = int(paras.rstrip("%"))
+            if not 0 <= chance <= 100:
+                await app.sendGroupMessage(group, MessageChain.create([
+                    Plain(f"错误：概率应在0%-100%范围内")
+                ]))
+                return
+            update_config(group.id, "repeatChance", chance)
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"当前复读概率：{chance}%")
+            ]))
+        except ValueError:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain("错误：参数错误\n示例：设置复读概率25%")
+            ]))
+        set_group_flag(group.id)
+        return
+
     #   添加关键词
     #   权限：管理员/群主
     #   是否At机器人：否
@@ -387,7 +410,7 @@ async def group_superman_message_handler(app: GraiaMiraiApplication, message: Me
     Depend(judge_debug_mode),
     Depend(judge_at_others)
 ], priority=5)
-async def group_message_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group):
+async def group_message_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group, member: Member):
     if get_group_flag(group.id):
         return
     at_data = message.get(At)[0].dict()
@@ -396,7 +419,25 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
     text = message.asDisplay().replace(' ', '').lower()
 
     if contains("换lp次数", text):
-        pass
+        clp_times = fetch_clp_times(at_target)
+        if clp_times == 0:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"{member.name} 还没有换过lp呢~")
+            ]))
+        else:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"{member.name} 换了{clp_times}次lp了哦~")
+            ]))
+
+
+# 超管处理器
+@bcc.receiver(GroupMessage, headless_decoraters=[
+    Depend(judge_debug_mode)
+], priority=15)
+async def group_repeat_message_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group):
+    if get_group_flag(group.id):
+        return
+    print('do repeat process')
 
 
 @bcc.receiver(GroupMessage, headless_decoraters=[
