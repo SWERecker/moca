@@ -144,6 +144,7 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
                 Plain("错误：参数错误\n示例：设置图片cd20秒")
             ]))
         set_group_flag(group.id)
+        return
 
     #   设置复读cd
     #   权限：管理员/群主
@@ -166,6 +167,7 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
                 Plain("错误：参数错误\n示例：设置复读cd20秒")
             ]))
         set_group_flag(group.id)
+        return
 
     #   添加关键词
     #   权限：管理员/群主
@@ -198,6 +200,7 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
                 Plain(f"错误：{paras[0]}的关键词列表中已存在能够识别 {paras[1]} 的关键词了")
             ]))
         set_group_flag(group.id)
+        return
 
     #   删除关键词
     #   权限：管理员/群主
@@ -224,13 +227,21 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
                 Plain(f"错误：{paras[0]}的关键词列表中未找到关键词 {paras[1]}")
             ]))
         set_group_flag(group.id)
+        return
 
     #   查看当前参数
     #   权限：管理员/群主
     #   是否At机器人：否
     if text == "查看当前参数":
-        pass
+        to_reply_text = f"""当前参数：
+        图片cd：{fetch_config(group.id, "replyCD")}秒
+        复读cd：{fetch_config(group.id, "repeatCD")}秒
+        复读概率：{fetch_config(group.id, "repeatChance")}%"""
+        await app.sendGroupMessage(group, MessageChain.create([
+            Plain(to_reply_text)
+        ]))
         set_group_flag(group.id)
+        return
 
 
 # 常规消息处理器
