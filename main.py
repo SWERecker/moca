@@ -129,7 +129,7 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
     if text.startswith("设置图片cd") and len(text) > 6:
         paras = text[6:]
         try:
-            sec = paras.rstrip("秒").rstrip("s")
+            sec = int(paras.rstrip("秒").rstrip("s"))
             if sec < 5:
                 await app.sendGroupMessage(group, MessageChain.create([
                     Plain(f"错误：最短图片cd5秒")
@@ -152,7 +152,7 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
     if text.startswith("设置复读cd") and len(text) > 6:
         paras = text[6:]
         try:
-            sec = paras.rstrip("秒").rstrip("s")
+            sec = int(paras.rstrip("秒").rstrip("s"))
             if sec < 120:
                 await app.sendGroupMessage(group, MessageChain.create([
                     Plain(f"错误：最短复读cd120秒")
@@ -234,9 +234,9 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
     #   是否At机器人：否
     if text == "查看当前参数":
         to_reply_text = f"""当前参数：
-        图片cd：{fetch_config(group.id, "replyCD")}秒
-        复读cd：{fetch_config(group.id, "repeatCD")}秒
-        复读概率：{fetch_config(group.id, "repeatChance")}%"""
+图片cd：{fetch_config(group.id, "replyCD")}秒
+复读cd：{fetch_config(group.id, "repeatCD")}秒
+复读概率：{fetch_config(group.id, "repeatChance")}%"""
         await app.sendGroupMessage(group, MessageChain.create([
             Plain(to_reply_text)
         ]))
