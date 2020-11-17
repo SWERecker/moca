@@ -88,6 +88,9 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
         return
     text = message.asDisplay().replace(" ", "").lower()
 
+    #   语音
+    #   权限：成员
+    #   是否At机器人：是
     if contains("说话", "语音", text):
         if is_in_user_cd(member.id, "voice"):
             return
@@ -99,15 +102,63 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
         set_group_flag(group.id)
         return
 
+    #   统计次数
+    #   权限：成员
+    #   是否At机器人：是
     if contains("统计次数", "次数统计", text):
         if is_in_cd(group.id, "replyHelpCD"):
             return
         update_cd(group.id, "replyHelpCD")
         sorted_keyword_list = sort_dict(fetch_group_count(group.id))
-        create_dict_pic(sorted_keyword_list, f'{group.id}_count', '次数', sort_by_value=True)
+        pic_path = create_dict_pic(sorted_keyword_list, f'{group.id}_count', '次数', sort_by_value=True)
         await app.sendGroupMessage(group, MessageChain.create([
-            Image.fromLocalFile(os.path.join(config.temp_path, f'{group.id}_count.png'))]
+            Image.fromLocalFile(pic_path)]
         ))
+        set_group_flag(group.id)
+        return
+
+    #   统计lp排行
+    #   权限：成员
+    #   是否At机器人：是
+    if contains("lp排行", text.replace("老婆", "lp")):
+        if is_in_cd(group.id, "replyHelpCD"):
+            return
+        update_cd(group.id, "replyHelpCD")
+        lp_list_dict = lp_list_rank()
+        pic_path = create_dict_pic(lp_list_dict, 'lp_list_rank', '人数（前十）')
+        await app.sendGroupMessage(group, MessageChain.create([
+            Image.fromLocalFile(pic_path)]
+        ))
+        set_group_flag(group.id)
+        return
+
+    #   查看关键词列表
+    #   权限：成员
+    #   是否At机器人：是
+    if "关键词" in text:
+        if is_in_cd(group.id, "replyHelpCD"):
+            return
+        update_cd(group.id, "replyHelpCD")
+        sorted_keyword_list = sort_dict(fetch_group_keyword(group.id))
+        pic_path = create_dict_pic(sorted_keyword_list, f'{group.id}_key', '关键词')
+        await app.sendGroupMessage(group, MessageChain.create([
+            Image.fromLocalFile(pic_path)
+        ]))
+        set_group_flag(group.id)
+        return
+
+    #   查看图片数量
+    #   权限：成员
+    #   是否At机器人：是
+    if "图片数量" in text:
+        if is_in_cd(group.id, "replyHelpCD"):
+            return
+        update_cd(group.id, "replyHelpCD")
+        count_list = sort_dict(fetch_picture_count(group.id))
+        pic_path = create_dict_pic(count_list, f'{group.id}_piccount', '图片数量', sort_by_value=True)
+        await app.sendGroupMessage(group, MessageChain.create([
+            Image.fromLocalFile(pic_path)
+        ]))
         set_group_flag(group.id)
         return
 
@@ -413,6 +464,7 @@ async def group_superman_message_handler(app: GraiaMiraiApplication, message: Me
 async def group_message_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group, member: Member):
     if get_group_flag(group.id):
         return
+
     at_data = message.get(At)[0].dict()
     at_target: int = at_data['target']
 

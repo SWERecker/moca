@@ -223,20 +223,33 @@ def fetch_group_keyword(group: int) -> dict:
 
 def fetch_group_count(group: int) -> dict:
     """
-    获取群关键词列表.
+    获取群统计次数.
 
     :param group: 群号
 
     :return: 统计次数列表(dict)
     """
     try:
-        res = gc.find({"group": group})
+        res = gc.find({"group": group}, {"_id": 0, "group": 0})
         data = res[0]
-        del data['_id']
-        del data['group']
         return data
     except IndexError:
         return {}
+
+
+def fetch_picture_count(group: int) -> dict:
+    """
+    获取群统计次数.
+
+    :param group: 群号
+    :return: 文件数量(dict)
+    """
+    result = {}
+    group_keywords = fetch_group_keyword(group)
+    names = group_keywords.keys()
+    for name in names:
+        result[name] = rc.scard(name)
+    return result
 
 
 def sort_dict(origin_dict: dict) -> dict:
@@ -262,7 +275,7 @@ def create_dict_pic(data: dict, group_id_with_type: str, title: str, sort_by_val
     :param group_id_with_type: 群号_文件类型
     :param title: 表格第二列的标题
     :param sort_by_value: 是否按照值从大到小排序
-    :return: None, 写入{temp_path}/{名称}.png
+    :return: 图片文件的目录, 写入{temp_path}/{名称}.png
     """
     tab = PrettyTable(border=False, header=True, header_style='title')
     font_file = os.path.join(config.resource_path, "font", "PingFang.ttf")
@@ -315,6 +328,7 @@ def create_dict_pic(data: dict, group_id_with_type: str, title: str, sort_by_val
     draw.multiline_text((space, space), tab_info, fill=(0, 0, 0), font=font)
     im_new.save(new_img_file, "png")
     del draw
+    return new_img_file
 
 
 def set_group_flag(group_id: int):
@@ -412,7 +426,10 @@ def update_count(group: int, name: str):
     """
     query = {"group": group}
     new_value = {"$inc": {name: 1}}
-    gc.update_one(query, new_value)
+    res = gc.update_one(query, new_value)
+    # 若未修改任何数据说明该群组数据为空
+    if res.modified_count == 0:
+        gc.insert_one({"group": group, name: 1})
 
 
 def user_set_lp(qq: int, group: int, lp_name: str) -> list:
@@ -565,3 +582,29 @@ def match_lp(group: int, lp_name: str) -> str:
         return sorted(simi_dict, key=simi_dict.__getitem__, reverse=True)[0]
     else:
         return "NOT_FOUND"
+
+
+def lp_list_rank() -> dict:
+    """
+    统计设置为lp最多的10个.
+
+    :return: 已从大到小排序的字典
+    """
+    result = {}
+    lp_data = ucf.find({}, {"_id": 0, "qq": 1, "lp": 1})
+
+    for data in lp_data:
+        if 'lp' in data:
+            if not result.get(data['lp']):
+                result[data['lp']] = 1
+            else:
+                result[data['lp']] += 1
+    sorted_dict = sorted(result.items(), key=lambda d: d[1], reverse=True)
+    result = {}
+    c = 0
+    for k, v in sorted_dict:
+        result[k] = v
+        c += 1
+        if c == 10:
+            break
+    return result
