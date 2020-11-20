@@ -1,4 +1,17 @@
-from function import ucf
+import json
+import os
+import random
+
+from graia.application import MessageChain
+from graia.application.message.elements.internal import Plain, At
+
+from function import ucf, get_timestamp_now
+
+if os.path.isfile('config.json'):
+    with open('config.json', 'r', encoding='utf-8')as cfg_file:
+        cfg = json.load(cfg_file)
+else:
+    cfg = {"BUY_PAN_INTERVAL": 3600, "SIGNIN_PAN": 5, "BUY_PAN_MIN": 1, "BUY_PAN_MAX": 10, "EAT_PAN_AMOUNT": 1}
 
 
 def pan_change(qq: int, amount: int) -> list:
@@ -31,3 +44,67 @@ def pan_change(qq: int, amount: int) -> list:
             return [False, -1]
         except KeyError:
             return [False, -1]
+
+
+async def buy_pan(qq: int) -> MessageChain:
+    """
+    买面包.
+
+    :param qq: QQ号
+    :return: 结果MessageChain
+    """
+    in_buy_cd = False
+    data = ucf.find_one({"qq": qq}, {"_id": 0, "last_buy_time": 1, 'pan': 1})
+    if not bool(data):
+        data = {"qq": qq}
+
+    last_buy_time = data.get('last_buy_time') if data.get('last_buy_time') else 0
+    user_own_pan = data.get('pan') if data.get('pan') else 0
+    time_interval = get_timestamp_now() - last_buy_time
+
+    if time_interval < cfg.get('BUY_PAN_INTERVAL'):
+        in_buy_cd = True
+
+    if in_buy_cd:
+        time_interval = last_buy_time + cfg.get('BUY_PAN_INTERVAL') - get_timestamp_now()
+        if time_interval < 60:
+            str_next_buy_time = f"{time_interval}秒"
+        else:
+            str_next_buy_time = f"{int(time_interval / 60)}分钟{time_interval % 60}秒"
+        return MessageChain.create([
+            At(target=qq),
+            Plain(f' 还不能购买呢~\n还要等{str_next_buy_time}才能再买哦~')
+        ])
+
+    buy_amount = random.randint(cfg.get('BUY_PAN_MIN'), cfg.get('BUY_PAN_MAX'))
+    user_own_pan += buy_amount
+
+    data['last_buy_time'] = get_timestamp_now()
+    data['pan'] = user_own_pan
+    res = ucf.update_one({"qq": qq}, {"$set": data})
+    if res.modified_count == 0:
+        ucf.insert_one(data)
+    ucf.update_one({"qq": qq}, {"$inc": {'buy_count': 1}})
+    return MessageChain.create([
+        At(target=qq),
+        Plain(f' 成功购买了{buy_amount}个面包哦~\n你现在有{user_own_pan}个面包啦~')
+    ])
+
+
+async def eat_pan(qq: int) -> MessageChain:
+    """
+    吃~面~包~.
+
+    :param qq: 用户qq
+    :return: 结果MessageChain
+    """
+    res = pan_change(qq, -cfg.get('EAT_PAN_AMOUNT'))
+    if not res[0]:
+        return MessageChain.create([
+            At(target=qq),
+            Plain(' 面包不够吃了QAQ...')
+        ])
+    return MessageChain.create([
+            At(target=qq),
+            Plain(f" 你吃掉了{cfg.get('EAT_PAN_AMOUNT')}个面包，还剩{res[1]}个面包哦~")
+        ])

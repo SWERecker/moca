@@ -4,6 +4,7 @@ import os
 import random
 import re
 import time
+import datetime
 
 import pymongo
 import redis
@@ -33,23 +34,24 @@ rc = redis.Redis(connection_pool=cache_pool)
 forbidden_signs = "/[]-^?*.$\\|"
 
 
-def init_group(group_id: int):
+def init_group(group: int):
     """
     初始化群
-    :param group_id: 群号
-    :return:
+
+    :param group: 群号
+    :return: None
     """
-    if not gol.value_exist(f"KEYWORD_{group_id}"):
-        print(f'=========初始化 {group_id}=========')
+    if not gol.value_exist(f"KEYWORD_{group}"):
+        print(f'=========初始化 {group}=========')
         with open(
                 os.path.join(config.resource_path, "template", "key_template.json"),
                 'r',
                 encoding='utf-8'
         )as key_template_file:
             key_template = json.load(key_template_file)
-        key_template["group"] = group_id
+        key_template["group"] = group
         gkw.insert_one(key_template)
-        gol.set_value(f"KEYWORD_{group_id}", key_template['keyword'])
+        gol.set_value(f"KEYWORD_{group}", key_template['keyword'])
 
         with open(
                 os.path.join(config.resource_path, "template", "config_template.json"),
@@ -57,7 +59,7 @@ def init_group(group_id: int):
                 encoding='utf-8'
         )as config_template_file:
             config_template = json.load(config_template_file)
-        config_template["group"] = group_id
+        config_template["group"] = group
         gcf.insert_one(config_template)
 
 
@@ -73,28 +75,28 @@ def init_mocabot():
         gol.set_value(f"KEYWORD_{n['group']}", n['keyword'])
 
 
-def update_config(group_id: int, arg: str, value):
+def update_config(group: int, arg: str, value):
     """
     向数据库中更新某参数.
 
-    :param group_id: QQ群号
+    :param group: QQ群号
     :param arg: 参数名称
     :param value: 参数值
     :return: 新参数值
     """
-    gcf.update_one({"group": group_id}, {"$set": {arg: value}})
+    gcf.update_one({"group": group}, {"$set": {arg: value}})
     return value
 
 
-def fetch_config(group_id: int, arg: str):
+def fetch_config(group: int, arg: str):
     """
     从数据库中查询某参数.
 
-    :param group_id: QQ群号 (int)
+    :param group: QQ群号 (int)
     :param arg: 参数名称 (str)
     :return: 参数值 (any), 若存在config但查询的参数不存在返回-2，若不存在config即群组config未初始化返回-1
     """
-    res = gcf.find({"group": group_id}, {arg: 1})
+    res = gcf.find({"group": group}, {arg: 1})
     try:
         value = res[0].get(arg)
         if value is None:
@@ -105,20 +107,20 @@ def fetch_config(group_id: int, arg: str):
         return -1
 
 
-def update_cd(group_id: int, cd_type: str, cd_time=0):
+def update_cd(group: int, cd_type: str, cd_time=0):
     """
     更新群组的某类cd.
 
-    :param group_id: QQ群号(int)
+    :param group: QQ群号(int)
     :param cd_type: 参数名称(str)
     :param cd_time: cd时间（可选，如不指定则从数据库中查找）
     :return: None
     """
     if not cd_time == 0:
-        gol.set_value(f'in_{cd_type}_cd_{group_id}', get_timestamp() + cd_time)
+        gol.set_value(f'in_{cd_type}_cd_{group}', get_timestamp_now() + cd_time)
     else:
-        group_cd = fetch_config(group_id, cd_type)
-        gol.set_value(f'in_{cd_type}_cd_{group_id}', get_timestamp() + group_cd)
+        group_cd = fetch_config(group, cd_type)
+        gol.set_value(f'in_{cd_type}_cd_{group}', get_timestamp_now() + group_cd)
 
 
 def update_user_cd(user_id: int, cd_type: str, cd_time: int = 0):
@@ -130,19 +132,19 @@ def update_user_cd(user_id: int, cd_type: str, cd_time: int = 0):
     :param cd_time: cd时间
     :return: None
     """
-    gol.set_value(f'in_{cd_type}_user_cd_{user_id}', get_timestamp() + cd_time)
+    gol.set_value(f'in_{cd_type}_user_cd_{user_id}', get_timestamp_now() + cd_time)
 
 
-def is_in_cd(group_id: int, cd_type: str) -> bool:
+def is_in_cd(group: int, cd_type: str) -> bool:
     """
     判断是否在cd中.
 
-    :param group_id: QQ群号
+    :param group: QQ群号
     :param cd_type: 要查询的cd类型
     :return: True/False
     """
-    if gol.value_exist(f'in_{cd_type}_cd_{group_id}'):
-        if get_timestamp() > gol.get_value(f'in_{cd_type}_cd_{group_id}'):
+    if gol.value_exist(f'in_{cd_type}_cd_{group}'):
+        if get_timestamp_now() > gol.get_value(f'in_{cd_type}_cd_{group}'):
             return False
         else:
             return True
@@ -159,21 +161,12 @@ def is_in_user_cd(user_id: int, cd_type: str) -> bool:
     :return: True/False
     """
     if gol.value_exist(f'in_{cd_type}_user_cd_{user_id}'):
-        if get_timestamp() > gol.get_value(f'in_{cd_type}_user_cd_{user_id}'):
+        if get_timestamp_now() > gol.get_value(f'in_{cd_type}_user_cd_{user_id}'):
             return False
         else:
             return True
     else:
         return False
-
-
-def get_timestamp() -> int:
-    """
-    获取秒级的时间戳
-
-    :return: 秒级时间戳
-    """
-    return int(time.time())
 
 
 def is_superman(member_id: int) -> bool:
@@ -331,36 +324,35 @@ def create_dict_pic(data: dict, group_id_with_type: str, title: str, sort_by_val
     return new_img_file
 
 
-def set_group_flag(group_id: int):
+def set_group_flag(group: int):
     """
     设置群已处理过的flag.
 
     :return: 使用说明
     """
-    gol.set_value(f'group_{group_id}_processed', True)
+    gol.set_value(f'group_{group}_processed', True)
 
 
-def get_group_flag(group_id: int):
+def get_group_flag(group: int):
     """
     获取群处理flag状态.
 
     :return: 状态(bool)
     """
-    flag = gol.get_value(f'group_{group_id}_processed')
-    if flag:
+    if gol.get_value(f'group_{group}_processed'):
         return True
     return False
 
 
-def exp_enabled(group_id: int) -> bool:
+def exp_enabled(group: int) -> bool:
     """
     检查是否启用实验功能
 
-    :param group_id: 群号
+    :param group: 群号
 
     :return: True/False
     """
-    exp_status = fetch_config(group_id, "exp")
+    exp_status = fetch_config(group, "exp")
     if exp_status is None:
         return True
     else:
@@ -368,6 +360,19 @@ def exp_enabled(group_id: int) -> bool:
             return False
         else:
             return True
+
+
+def random_do(chance: int) -> bool:
+    """
+    随机事件 {chance}% 发生.
+
+    :param chance: 0~100,
+    :return: 发生(True)，不发生(False)
+    """
+    if random.random() < (int(chance) / 100):
+        return True
+    else:
+        return False
 
 
 def rand_pic(name: str, count=1) -> list:
@@ -424,9 +429,7 @@ def update_count(group: int, name: str):
     :param name: 要+1的名称
     :return: None
     """
-    query = {"group": group}
-    new_value = {"$inc": {name: 1}}
-    res = gc.update_one(query, new_value)
+    res = gc.update_one({"group": group}, {"$inc": {name: 1}})
     # 若未修改任何数据说明该群组数据为空
     if res.modified_count == 0:
         gc.insert_one({"group": group, name: 1})
@@ -608,3 +611,69 @@ def lp_list_rank() -> dict:
         if c == 10:
             break
     return result
+
+
+def get_timestamp_now() -> int:
+    """
+    获取当前时间戳（秒级）.
+
+    :return: 当前时间戳（秒级）
+    """
+    return int(time.time())
+
+
+def get_timestamp_today_start() -> int:
+    """
+    获取今天00：00的时间戳.
+
+    :return: 今天00：00的时间戳
+    """
+    return int(time.mktime(time.strptime(str(datetime.date.today()), '%Y-%m-%d')))
+
+
+def get_timestamp_today_end() -> int:
+    """
+    获取今天23：59的时间戳.
+
+    :return: 今天23：59的时间戳
+    """
+    return int(time.mktime(time.strptime(str(datetime.date.today() + datetime.timedelta(days=1)), '%Y-%m-%d'))) - 1
+
+
+def moca_repeater(group: int, message: MessageChain) -> [bool, bool]:
+    """
+    复读机.
+
+    :param group: QQ群号
+    :param message: 消息的MessageChain
+    :return [bool: 是否复读, bool: 是否附带复读图片]
+    """
+    if not gol.value_exist(f"{group}_repeater"):
+        gol.set_value(f"{group}_repeater", {"m_count": 0, "m_last_repeat": 'content'})
+
+    exist_data: dict = gol.get_value(f"{group}_repeater")
+    m_count = exist_data.get('m_count')
+    excludeSourceMessage = re.sub(r"(?:\[mirai:source?:(.*?)?\])", "", message.asSerializationString())
+    if m_count == 0:
+        exist_data['m_cache_0'] = excludeSourceMessage
+        exist_data['m_count'] = 1
+    if m_count == 1:
+        exist_data['m_cache_1'] = excludeSourceMessage
+        exist_data['m_count'] = 2
+    if m_count == 2:
+        exist_data['m_cache_0'] = exist_data['m_cache_1']
+        exist_data['m_cache_1'] = excludeSourceMessage
+
+    gol.set_value(f"{group}_repeater", exist_data)
+    # 缓存消息 ===
+    if not is_in_cd(group, "repeatCD"):
+        if not exist_data.get('m_last_repeat') == excludeSourceMessage:
+            if exist_data.get('m_cache_0') == exist_data.get('m_cache_1'):
+                if random_do(fetch_config(group, "repeatChance")):
+                    exist_data['m_last_repeat'] = excludeSourceMessage
+                    gol.set_value(f"{group}_repeater", exist_data)
+                    if random_do(5):
+                        return [True, True]
+                    else:
+                        return [True, False]
+    return [False, False]

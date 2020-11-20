@@ -1,5 +1,10 @@
 import asyncio
+import platform
 import re
+
+from graia.application.event.mirai import MemberJoinEvent, BotInvitedJoinGroupRequestEvent, BotJoinGroupEvent, \
+    MemberLeaveEventKick
+
 from function import *
 from graia.application import GraiaMiraiApplication, Session, GroupMessage, MessageChain, Group, Member
 from graia.application.group import MemberPerm
@@ -7,7 +12,8 @@ from graia.application.message.elements.internal import Plain, At, Image
 from graia.broadcast import Broadcast, ExecutionStop
 from graia.broadcast.builtin.decoraters import Depend
 
-from functions.pan import pan_change
+from functions.pan import pan_change, buy_pan, eat_pan
+from functions.signin import user_signin
 
 loop = asyncio.get_event_loop()
 bcc = Broadcast(loop=loop)
@@ -45,7 +51,7 @@ def judge_at_bot(message: MessageChain):
         raise ExecutionStop()
 
 
-#   判断是否是普通成员
+#   判断是否At了除机器人外任意成员
 def judge_at_others(message: MessageChain):
     at_others = False
     if At in message:
@@ -82,7 +88,7 @@ async def group_init_handler(group: Group):
 @bcc.receiver(GroupMessage, headless_decoraters=[
     Depend(judge_debug_mode),
     Depend(judge_at_bot)
-], priority=1)
+], priority=2)
 async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group, member: Member):
     if get_group_flag(group.id):
         return
@@ -162,12 +168,22 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
         set_group_flag(group.id)
         return
 
+    #   签到
+    #   权限：成员
+    #   是否At机器人：是
+    if contains("签到", text) and exp_enabled(group.id):
+        res = await user_signin(member.id)
+        await app.sendGroupMessage(group, res)
+        set_group_flag(group.id)
+        return
+
 
 # Manager的群消息监听器
 @bcc.receiver(GroupMessage, headless_decoraters=[
     Depend(judge_debug_mode),
-    Depend(judge_manager)
-], priority=2)
+    Depend(judge_manager),
+    Depend(judge_superman)
+], priority=3)
 async def group_manager_message_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group):
     if get_group_flag(group.id):
         return
@@ -321,7 +337,7 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
 # 常规消息处理器
 @bcc.receiver(GroupMessage, headless_decoraters=[
     Depend(judge_debug_mode)
-], priority=3)
+], priority=4)
 async def group_message_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group, member: Member):
     if get_group_flag(group.id):
         return
@@ -334,6 +350,7 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
     if contains("使用说明", "help", text):
         await app.sendGroupMessage(group, user_manual())
         set_group_flag(group.id)
+        return
 
     #   设置lp
     #   权限：成员
@@ -444,24 +461,44 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
             update_cd(group.id, "replyCD")
             return
 
+    # 实验功能
+    if exp_enabled(group.id):
+        #   买面包
+        #   权限：成员
+        #   是否At机器人：否
+        if text == '买面包' or text == '来点面包':
+            res = await buy_pan(member.id)
+            await app.sendGroupMessage(group, res)
+            set_group_flag(group.id)
+            return
+
+        #   吃面包
+        #   权限：成员
+        #   是否At机器人：否
+        if text == '吃面包' or text == '恰面包':
+            res = await eat_pan(member.id)
+            await app.sendGroupMessage(group, res)
+            set_group_flag(group.id)
+            return
+
 
 # 超管处理器
 @bcc.receiver(GroupMessage, headless_decoraters=[
     Depend(judge_debug_mode),
     Depend(judge_superman)
-], priority=4)
+], priority=5)
 async def group_superman_message_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group):
     if get_group_flag(group.id):
         return
-    print('Superman')
+    pass
 
 
 # At了除机器人外的任意成员的监听器
 @bcc.receiver(GroupMessage, headless_decoraters=[
     Depend(judge_debug_mode),
     Depend(judge_at_others)
-], priority=5)
-async def group_message_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group, member: Member):
+], priority=6)
+async def group_at_others_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group, member: Member):
     if get_group_flag(group.id):
         return
 
@@ -482,22 +519,81 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
             ]))
 
 
-# 超管处理器
+# 复读机
 @bcc.receiver(GroupMessage, headless_decoraters=[
     Depend(judge_debug_mode)
 ], priority=15)
-async def group_repeat_message_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group):
+async def group_repeater_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group):
     if get_group_flag(group.id):
         return
-    print('do repeat process')
+    res = moca_repeater(group.id, message)
+    if res[0]:
+        if res[1]:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Image.fromLocalFile(os.path.join(config.resource_path, "fudu", "fudu.jpg"))
+            ]))
+        await app.sendGroupMessage(group, message.asSendable())
+        update_cd(group.id, "repeatCD")
 
 
+# 重置群组标志位/每300秒更新一次图片列表
 @bcc.receiver(GroupMessage, headless_decoraters=[
     Depend(judge_debug_mode)
 ], priority=16)
 async def flag_handler(group: Group):
+    # update files list
+    if get_timestamp_now() - gol.get_value('file_list_update_time') > 300:
+        gol.set_value('file_list_update_time', get_timestamp_now())
+        if platform.system() == 'Windows':
+            os.system('start python update_db.py')
+        else:
+            os.system('python update_db.py &')
+
     # Reset group flag
     gol.set_value(f'group_{group.id}_processed', False)
+
+
+@bcc.receiver(MemberJoinEvent, headless_decoraters=[
+    Depend(judge_debug_mode)
+])
+async def group_welcome_join_handler(app:GraiaMiraiApplication, group: Group, member: Member):
+    #   欢迎新成员加入
+    if fetch_config(group.id, "welcomeNewMemberJoin") == 1:
+        await app.sendGroupMessage(group, MessageChain.create([
+            At(target=member.id),
+            Plain(f' 欢迎加入{group.name}！')
+        ]))
+
+
+@bcc.receiver(BotInvitedJoinGroupRequestEvent, headless_decoraters=[
+    Depend(judge_debug_mode)
+])
+async def superman_invite_join_group(event: BotInvitedJoinGroupRequestEvent):
+    # 自动接收邀请
+    if is_superman(event.supplicant):
+        await event.accept("Auto accept")
+    else:
+        await event.reject("Auto reject")
+
+
+@bcc.receiver(BotJoinGroupEvent, headless_decoraters=[
+    Depend(judge_debug_mode)
+])
+async def bot_join_group(app: GraiaMiraiApplication, group: Group):
+    # 自动发送使用说明
+    await app.sendGroupMessage(group, MessageChain.create([
+        Plain(f'大家好，我是mocaBot\n使用说明：http://mocabot.cn/')
+    ]))
+
+
+@bcc.receiver(MemberLeaveEventKick, headless_decoraters=[
+    Depend(judge_debug_mode)
+])
+async def superman_kick_from_group(app: GraiaMiraiApplication, member: Member, group: Group):
+    # superman被踢自动退出
+    if is_superman(member.id):
+        print(f"Superman leaving {group.id}")
+        await app.quit(group)
 
 
 if __name__ == "__main__":

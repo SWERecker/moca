@@ -1,0 +1,7 @@
+{
+  "BUY_PAN_INTERVAL": 3600,
+  "SIGNIN_PAN": 5,
+  "BUY_PAN_MIN": 1,
+  "BUY_PAN_MAX": 10,
+  "EAT_PAN_AMOUNT": 1
+}
