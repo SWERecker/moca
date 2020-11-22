@@ -8,8 +8,9 @@ import datetime
 
 import pymongo
 import redis
+import requests
 from graia.application import MessageChain
-from graia.application.message.elements.internal import Plain, Image
+from graia.application.message.elements.internal import Plain, Image, ImageType
 from pypinyin import lazy_pinyin
 from PIL import Image as ImageLib
 from PIL import ImageDraw, ImageFont
@@ -507,14 +508,20 @@ def append_keyword(group: int, paras: list):
         else:
             p = re.findall(group_keywords[name], key)
             if p:
-                return -2
+                return MessageChain.create([
+                    Plain(f"错误：{paras[0]}的关键词列表中已存在能够识别 {paras[1]} 的关键词了")
+                ])
             group_keywords[name] += f"|{key}"
 
         gol.set_value(f"KEYWORD_{group}", group_keywords)
         gkw.find_one_and_update({"group": group}, {"$set": {"keyword": group_keywords}})
-        return 0
+        return MessageChain.create([
+            Plain(f"向{paras[0]}中添加了关键词：{paras[1]}")
+        ])
     except KeyError:
-        return -1
+        return MessageChain.create([
+            Plain(f"错误：关键词列表中未找到{paras[0]}")
+        ])
 
 
 def remove_keyword(group: int, paras: list):
@@ -540,11 +547,17 @@ def remove_keyword(group: int, paras: list):
             group_keywords[name] = group_keywords[name].rstrip("|")
             gol.set_value(f"KEYWORD_{group}", group_keywords)
             gkw.find_one_and_update({"group": group}, {"$set": {"keyword": group_keywords}})
-            return 0
+            return MessageChain.create([
+                Plain(f"删除了{paras[0]}中的关键词：{paras[1]}")
+            ])
         else:
-            return -2
+            return MessageChain.create([
+                Plain(f"错误：{paras[0]}的关键词列表中未找到关键词 {paras[1]}")
+            ])
     except KeyError:
-        return -1
+        return MessageChain.create([
+            Plain(f"错误：关键词列表中未找到{paras[0]}")
+        ])
 
 
 def fetch_clp_times(uid: int) -> int:
@@ -677,3 +690,94 @@ def moca_repeater(group: int, message: MessageChain) -> [bool, bool]:
                     else:
                         return [True, False]
     return [False, False]
+
+
+async def save_image(group: int, urls: list) -> MessageChain:
+    """
+    保存提交的图片.
+
+    :param group: 群号
+    :param urls: 图片URLs
+    :return: 结果MessageChain
+    """
+    # upload/{群号}/月-日/{imageId}.{imageType}
+    success_count = 0
+    failed_count = 0
+    err_text = ""
+    file_path = os.path.join(
+        config.temp_path,
+        'upload',
+        str(group),
+        time.strftime("%m-%d")
+    )
+    if not os.path.exists(file_path):
+        os.makedirs(file_path)
+    for url in urls:
+        # noinspection PyBroadException
+        try:
+            res = requests.get(url)
+            content_type = res.headers.get("Content-Type")
+            file_type = content_type.split('/')[-1]
+            file_name = f'{url.split("/")[-2]}.{file_type}'
+            save_path = os.path.join(file_path, file_name)
+            with open(save_path, "wb") as image_file:
+                image_file.write(res.content)
+            success_count += 1
+        except Exception as e:
+            failed_count += 1
+            err_text = repr(e)
+    res_str = f'提交图片：收到{success_count}张图片'
+    if not failed_count == 0:
+        res_str += f'，失败{failed_count}张。\n'
+        res_str += err_text
+    return MessageChain.create([
+        Plain(res_str)
+    ])
+
+
+async def upload_photo(group: int, message: MessageChain) -> MessageChain:
+    """
+    提交图片.
+
+    :param group: 群号
+    :param message: 消息
+    :return:
+    """
+    text = message.asDisplay().replace(" ", "")
+    data_list = []
+    if not message.has(Image):
+        return MessageChain.create([
+            Plain("错误：你至少需要包含一张图片")
+        ])
+    category = text[text.index("提交图片"):].lstrip("提交图片").replace("[图片]", "")
+    if category == "":
+        return MessageChain.create([
+            Plain("错误：请附带分类，例如：提交图片群友b话，再加上图片")
+        ])
+    if check_para(category):
+        return MessageChain.create([
+            Plain("错误：名称中含有非法字符，请检查")
+        ])
+    message_data = message.dict()['__root__']
+    for index in range(len(message_data)):
+        if message_data[index].get('type') == ImageType.Group:
+            data_list.append(message_data[index].get("url"))
+    res: MessageChain = await save_image(group, data_list)
+    return res
+
+
+def pan_enabled(group: int) -> bool:
+    """
+    检查是否开启面包功能
+
+    :param group:
+    :return:
+    """
+    pan_status = fetch_config(group, "pan")
+    if pan_status is None:
+        return True
+    else:
+        if pan_status == 0:
+            return False
+        else:
+            return True

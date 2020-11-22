@@ -1,6 +1,5 @@
 import asyncio
 import platform
-import re
 
 from graia.application.event.mirai import MemberJoinEvent, BotInvitedJoinGroupRequestEvent, BotJoinGroupEvent, \
     MemberLeaveEventKick
@@ -168,15 +167,6 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
         set_group_flag(group.id)
         return
 
-    #   签到
-    #   权限：成员
-    #   是否At机器人：是
-    if contains("签到", text) and exp_enabled(group.id):
-        res = await user_signin(member.id)
-        await app.sendGroupMessage(group, res)
-        set_group_flag(group.id)
-        return
-
 
 # Manager的群消息监听器
 @bcc.receiver(GroupMessage, headless_decoraters=[
@@ -270,25 +260,13 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
             ]))
             return
 
-        if check_para(paras[0]) and check_para(paras[1]):
+        if check_para(paras[0]) or check_para(paras[1]):
             await app.sendGroupMessage(group, MessageChain.create([
                 Plain("错误：参数中禁止含有特殊符号!")
             ]))
             return
 
-        res = append_keyword(group.id, paras)
-        if res == 0:
-            await app.sendGroupMessage(group, MessageChain.create([
-                Plain(f"向{paras[0]}中添加了关键词：{paras[1]}")
-            ]))
-        elif res == -1:
-            await app.sendGroupMessage(group, MessageChain.create([
-                Plain(f"错误：关键词列表中未找到{paras[0]}")
-            ]))
-        elif res == -2:
-            await app.sendGroupMessage(group, MessageChain.create([
-                Plain(f"错误：{paras[0]}的关键词列表中已存在能够识别 {paras[1]} 的关键词了")
-            ]))
+        await app.sendGroupMessage(group, append_keyword(group.id, paras))
         set_group_flag(group.id)
         return
 
@@ -303,19 +281,7 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
             ]))
             return
 
-        res = remove_keyword(group.id, paras)
-        if res == 0:
-            await app.sendGroupMessage(group, MessageChain.create([
-                Plain(f"删除了{paras[0]}中的关键词：{paras[1]}")
-            ]))
-        elif res == -1:
-            await app.sendGroupMessage(group, MessageChain.create([
-                Plain(f"错误：关键词列表中未找到{paras[0]}")
-            ]))
-        elif res == -2:
-            await app.sendGroupMessage(group, MessageChain.create([
-                Plain(f"错误：{paras[0]}的关键词列表中未找到关键词 {paras[1]}")
-            ]))
+        await app.sendGroupMessage(group, remove_keyword(group.id, paras))
         set_group_flag(group.id)
         return
 
@@ -332,6 +298,26 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
         ]))
         set_group_flag(group.id)
         return
+
+    #   打开/关闭功能
+    #   权限：管理员/群主
+    #   是否At机器人：否
+    if text.startswith("打开") or text.startswith("关闭"):
+        op = True if text[:2] == "打开" else False
+        if text[2:] == "实验功能":
+            update_config(group.id, "exp", int(op))
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"{group.id}已{text[:2]}实验功能")
+            ]))
+            set_group_flag(group.id)
+            return
+        if text[2:] == "面包功能":
+            update_config(group.id, "pan", int(op))
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"{group.id} 已{text[:2]}面包功能")
+            ]))
+            set_group_flag(group.id)
+            return
 
 
 # 常规消息处理器
@@ -359,6 +345,22 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
         if not len(text) > 4:
             return
         lp_name = text[4:]
+
+        if contains("谁", "?", lp_name.replace("？", "?")):
+            lp_name = fetch_user_lp(member.id, group.id)
+            if lp_name == "NOT_SET" or lp_name == "NOT_FOUND":
+                await app.sendGroupMessage(group, MessageChain.create([
+                    At(target=member.id),
+                    Plain(f" 你还没有设置lp或者你的lp没在这个群呢~")
+                ]))
+            else:
+                await app.sendGroupMessage(group, MessageChain.create([
+                    At(target=member.id),
+                    Plain(f" 你设置的lp是：{lp_name}")
+                ]))
+            set_group_flag(group.id)
+            return
+
         res = user_set_lp(member.id, group.id, lp_name)
         if res[0]:
             await app.sendGroupMessage(group, MessageChain.create([
@@ -368,6 +370,8 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
             await app.sendGroupMessage(group, MessageChain.create([
                 Plain("az，这个群没有找到你lp呢...")
             ]))
+        set_group_flag(group.id)
+        return
 
     #   发送lp
     #   权限：成员
@@ -392,15 +396,19 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
             pic_num = 1
             res_text = ""
             if twice_lp:
-                res = pan_change(member.id, -TWICE_LP_PAN_AMOUNT)
-                if res[0]:
-                    pic_num = 2
-                    res_text = f"面包-{TWICE_LP_PAN_AMOUNT}，还剩{res[1]}个面包~"
+                if pan_enabled(group.id):
+                    result = pan_change(member.id, -TWICE_LP_PAN_AMOUNT)
+                    if result[0]:
+                        pic_num = 2
+                        res_text = f"面包-{TWICE_LP_PAN_AMOUNT}，还剩{result[1]}个面包~"
+                    else:
+                        await app.sendGroupMessage(group, MessageChain.create([
+                            Plain("az，你的面包不够了呢QAQ")
+                        ]))
+                        return
                 else:
-                    await app.sendGroupMessage(group, MessageChain.create([
-                        Plain("az，你的面包不够了呢QAQ")
-                    ]))
-                    return
+                    twice_lp = False
+                    pic_num = 1
 
             file_list = rand_pic(lp_name, pic_num)
             d = [Image.fromLocalFile(e) for e in file_list]
@@ -408,6 +416,15 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
                 d.insert(0, Plain(res_text))
             await app.sendGroupMessage(group, MessageChain.create(d))
             update_count(group.id, lp_name)
+            set_group_flag(group.id)
+            return
+
+        #   提交图片
+        #   权限：成员
+        #   是否At机器人：否
+        if text.startswith('提交图片') and len(text) > 4:
+            res = await upload_photo(group.id, message)
+            await app.sendGroupMessage(group, res)
             set_group_flag(group.id)
             return
 
@@ -419,17 +436,6 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
         twice_lp = text.startswith("多")
         pic_num = 1
         res_text = ""
-        if twice_lp:
-            res = pan_change(member.id, -TWICE_LP_PAN_AMOUNT)
-            if res[0]:
-                pic_num = 2
-                res_text = f"面包-{TWICE_LP_PAN_AMOUNT}，还剩{res[1]}个面包~"
-            else:
-                await app.sendGroupMessage(group, MessageChain.create([
-                    Plain("az，你的面包不够了呢QAQ")
-                ]))
-                return
-
         req_name = ""
         key_found = False
 
@@ -451,6 +457,20 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
                         break
 
         if key_found:
+            if twice_lp:
+                if pan_enabled(group.id):
+                    result = pan_change(member.id, -TWICE_LP_PAN_AMOUNT)
+                    if result[0]:
+                        pic_num = 2
+                        res_text = f"面包-{TWICE_LP_PAN_AMOUNT}，还剩{result[1]}个面包~"
+                    else:
+                        await app.sendGroupMessage(group, MessageChain.create([
+                            Plain("az，你的面包不够了呢QAQ")
+                        ]))
+                        return
+                else:
+                    twice_lp = False
+                    pic_num = 1
             file_list = rand_pic(req_name, pic_num)
             d = [Image.fromLocalFile(e) for e in file_list]
             if twice_lp:
@@ -461,8 +481,8 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
             update_cd(group.id, "replyCD")
             return
 
-    # 实验功能
-    if exp_enabled(group.id):
+    # 面包功能开启
+    if pan_enabled(group.id):
         #   买面包
         #   权限：成员
         #   是否At机器人：否
@@ -477,6 +497,23 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
         #   是否At机器人：否
         if text == '吃面包' or text == '恰面包':
             res = await eat_pan(member.id)
+            await app.sendGroupMessage(group, res)
+            set_group_flag(group.id)
+            return
+
+        #   喂面包
+        #   权限：成员
+        #   是否At机器人：否
+        if text == '喂面包':
+            pass
+            set_group_flag(group.id)
+            return
+
+        #   签到
+        #   权限：成员
+        #   是否At机器人：是
+        if text == "签到":
+            res = await user_signin(member.id)
             await app.sendGroupMessage(group, res)
             set_group_flag(group.id)
             return
@@ -545,9 +582,11 @@ async def flag_handler(group: Group):
     if get_timestamp_now() - gol.get_value('file_list_update_time') > 300:
         gol.set_value('file_list_update_time', get_timestamp_now())
         if platform.system() == 'Windows':
-            os.system('start python update_db.py')
+            pass
+            # os.system('start python update_db.py')
         else:
-            os.system('python update_db.py &')
+            pass
+            # os.system('python update_db.py &')
 
     # Reset group flag
     gol.set_value(f'group_{group.id}_processed', False)
@@ -556,7 +595,7 @@ async def flag_handler(group: Group):
 @bcc.receiver(MemberJoinEvent, headless_decoraters=[
     Depend(judge_debug_mode)
 ])
-async def group_welcome_join_handler(app:GraiaMiraiApplication, group: Group, member: Member):
+async def group_welcome_join_handler(app: GraiaMiraiApplication, group: Group, member: Member):
     #   欢迎新成员加入
     if fetch_config(group.id, "welcomeNewMemberJoin") == 1:
         await app.sendGroupMessage(group, MessageChain.create([
