@@ -9,7 +9,7 @@ import datetime
 import pymongo
 import redis
 import requests
-from graia.application import MessageChain
+from graia.application import MessageChain, Group, GraiaMiraiApplication
 from graia.application.message.elements.internal import Plain, Image, ImageType
 from pypinyin import lazy_pinyin
 from PIL import Image as ImageLib
@@ -106,6 +106,40 @@ def fetch_config(group: int, arg: str):
             return value
     except IndexError:
         return -1
+
+
+def fetch_user_config(qq: int, arg: str):
+    """
+    从数据库中查询某参数.
+
+    :param qq: QQ号 (int)
+    :param arg: 参数名称 (str)
+    :return: 参数值 (any), 若存在config但查询的参数不存在返回-2，若不存在config即config未初始化返回-1
+    """
+    res = ucf.find({"qq": qq}, {arg: 1})
+    try:
+        value = res[0].get(arg)
+        if value is None:
+            return -2
+        else:
+            return value
+    except IndexError:
+        return -1
+
+
+def update_user_config(qq: int, arg: str, value):
+    """
+    向user数据库中更新某参数.
+
+    :param qq: QQ号
+    :param arg: 参数名称
+    :param value: 参数值
+    :return: 新参数值
+    """
+    res = ucf.update_one({"qq": qq}, {"$set": {arg: value}})
+    if res.modified_count == 0:
+        ucf.insert_one({"qq": qq, arg: value})
+    return value
 
 
 def update_cd(group: int, cd_type: str, cd_time=0):
@@ -692,12 +726,13 @@ def moca_repeater(group: int, message: MessageChain) -> [bool, bool]:
     return [False, False]
 
 
-async def save_image(group: int, urls: list) -> MessageChain:
+async def save_image(group: int, category: str, urls: list) -> MessageChain:
     """
     保存提交的图片.
 
     :param group: 群号
     :param urls: 图片URLs
+    :param category: 图片分类
     :return: 结果MessageChain
     """
     # upload/{群号}/月-日/{imageId}.{imageType}
@@ -708,7 +743,8 @@ async def save_image(group: int, urls: list) -> MessageChain:
         config.temp_path,
         'upload',
         str(group),
-        time.strftime("%m-%d")
+        time.strftime("%m-%d"),
+        category
     )
     if not os.path.exists(file_path):
         os.makedirs(file_path)
@@ -762,22 +798,17 @@ async def upload_photo(group: int, message: MessageChain) -> MessageChain:
     for index in range(len(message_data)):
         if message_data[index].get('type') == ImageType.Group:
             data_list.append(message_data[index].get("url"))
-    res: MessageChain = await save_image(group, data_list)
+    res: MessageChain = await save_image(group, category, data_list)
     return res
 
 
-def pan_enabled(group: int) -> bool:
+async def send_repeat_image(app: GraiaMiraiApplication, group: Group, message: MessageChain):
     """
-    检查是否开启面包功能
 
-    :param group:
-    :return:
+    :param app: GraiaMiraiApplication
+    :param group: Group
+    :param message: MessageChain
+    :return: None
     """
-    pan_status = fetch_config(group, "pan")
-    if pan_status is None:
-        return True
-    else:
-        if pan_status == 0:
-            return False
-        else:
-            return True
+    await app.sendGroupMessage(group, message.asSendable())
+    await app.sendGroupMessage(group, message.asSendable())

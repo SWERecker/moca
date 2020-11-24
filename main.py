@@ -1,5 +1,6 @@
 import asyncio
 import platform
+import threading
 
 from graia.application.event.mirai import MemberJoinEvent, BotInvitedJoinGroupRequestEvent, BotJoinGroupEvent, \
     MemberLeaveEventKick
@@ -11,7 +12,8 @@ from graia.application.message.elements.internal import Plain, At, Image
 from graia.broadcast import Broadcast, ExecutionStop
 from graia.broadcast.builtin.decoraters import Depend
 
-from functions.pan import pan_change, buy_pan, eat_pan
+from functions.draw import draw_lot
+from functions.pan import pan_change, buy_pan, eat_pan, pan_enabled, twice_lp
 from functions.signin import user_signin
 
 loop = asyncio.get_event_loop()
@@ -30,6 +32,7 @@ gapp = GraiaMiraiApplication(
 
 debug_mode = True
 TWICE_LP_PAN_AMOUNT = 3
+UPLOAD_PHOTO_PAN_AMOUNT = 1
 
 
 #   判断是否开启Debug模式
@@ -93,20 +96,6 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
         return
     text = message.asDisplay().replace(" ", "").lower()
 
-    #   语音
-    #   权限：成员
-    #   是否At机器人：是
-    if contains("说话", "语音", text):
-        if is_in_user_cd(member.id, "voice"):
-            return
-        voice_file = random.choice(os.listdir(os.path.join('resource', 'voice')))
-        with open(os.path.join('resource', 'voice', voice_file), 'rb')as voice_bin_file:
-            voice = await app.uploadVoice(voice_bin_file)
-        await app.sendGroupMessage(group, MessageChain.create([voice]))
-        update_user_cd(member.id, "voice", 10)
-        set_group_flag(group.id)
-        return
-
     #   统计次数
     #   权限：成员
     #   是否At机器人：是
@@ -166,6 +155,27 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
         ]))
         set_group_flag(group.id)
         return
+
+    if pan_enabled(group.id):
+        #   语音
+        #   权限：成员
+        #   是否At机器人：是
+        if contains("说话", "语音", text):
+            if is_in_user_cd(member.id, "voice"):
+                return
+            result = pan_change(member.id, -1)
+            if result[0]:
+                voice_file = random.choice(os.listdir(os.path.join('resource', 'voice')))
+                with open(os.path.join('resource', 'voice', voice_file), 'rb')as voice_bin_file:
+                    voice = await app.uploadVoice(voice_bin_file)
+                await app.sendGroupMessage(group, MessageChain.create([voice]))
+                update_user_cd(member.id, "voice", 10)
+            else:
+                await app.sendGroupMessage(group, MessageChain.create([
+                    Plain("要~给~摩~卡~面~包~才~跟~你~说~话~哦~")
+                ]))
+            set_group_flag(group.id)
+            return
 
 
 # Manager的群消息监听器
@@ -328,7 +338,7 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
     if get_group_flag(group.id):
         return
 
-    text = message.asDisplay().replace(' ', '').lower()
+    text = message.asDisplay().replace(' ', '')
 
     #   查询使用说明
     #   权限：成员
@@ -378,7 +388,7 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
     #   是否At机器人：否
     if not is_in_cd(group.id, "replyCD"):
         if ("来点" in text) and ("lp" in text.replace("老婆", "lp")):
-            twice_lp = text.startswith("多")
+            en_twice_lp = text.startswith("多")
             lp_name = fetch_user_lp(member.id, group.id)
 
             if lp_name == "NOT_SET":
@@ -395,21 +405,13 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
 
             pic_num = 1
             res_text = ""
-            if twice_lp:
-                if pan_enabled(group.id):
-                    result = pan_change(member.id, -TWICE_LP_PAN_AMOUNT)
-                    if result[0]:
-                        pic_num = 2
-                        res_text = f"面包-{TWICE_LP_PAN_AMOUNT}，还剩{result[1]}个面包~"
-                    else:
-                        await app.sendGroupMessage(group, MessageChain.create([
-                            Plain("az，你的面包不够了呢QAQ")
-                        ]))
-                        return
+            if en_twice_lp:
+                res = twice_lp(group.id, member.id)
+                pic_num = res[0]
+                if not res[1] == -1:
+                    res_text = f"摩卡吃掉了3个面包，你还剩{res[1]}个面包哦~"
                 else:
-                    twice_lp = False
-                    pic_num = 1
-
+                    res_text = "呜呜呜，面包不够吃啦~"
             file_list = rand_pic(lp_name, pic_num)
             d = [Image.fromLocalFile(e) for e in file_list]
             if twice_lp:
@@ -433,11 +435,12 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
     #   是否At机器人：否
     if not is_in_cd(group.id, "replyCD"):
         group_keywords = fetch_group_keyword(group.id)
-        twice_lp = text.startswith("多")
-        pic_num = 1
-        res_text = ""
+        en_twice_lp = text.startswith("多")
         req_name = ""
+        res_text = ""
+        pic_num = 1
         key_found = False
+        text = text.lstrip("多")
 
         for name, key_regex in group_keywords.items():
             if not key_regex == '':
@@ -457,23 +460,16 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
                         break
 
         if key_found:
-            if twice_lp:
-                if pan_enabled(group.id):
-                    result = pan_change(member.id, -TWICE_LP_PAN_AMOUNT)
-                    if result[0]:
-                        pic_num = 2
-                        res_text = f"面包-{TWICE_LP_PAN_AMOUNT}，还剩{result[1]}个面包~"
-                    else:
-                        await app.sendGroupMessage(group, MessageChain.create([
-                            Plain("az，你的面包不够了呢QAQ")
-                        ]))
-                        return
+            if en_twice_lp:
+                res = twice_lp(group.id, member.id)
+                pic_num = res[0]
+                if not res[1] == -1:
+                    res_text = f"摩卡吃掉了3个面包，你还剩{res[1]}个面包哦~"
                 else:
-                    twice_lp = False
-                    pic_num = 1
+                    res_text = "呜呜呜，面包不够吃啦~"
             file_list = rand_pic(req_name, pic_num)
             d = [Image.fromLocalFile(e) for e in file_list]
-            if twice_lp:
+            if en_twice_lp:
                 d.insert(0, Plain(res_text))
             await app.sendGroupMessage(group, MessageChain.create(d))
             update_count(group.id, req_name)
@@ -511,9 +507,18 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
 
         #   签到
         #   权限：成员
-        #   是否At机器人：是
+        #   是否At机器人：否
         if text == "签到":
             res = await user_signin(member.id)
+            await app.sendGroupMessage(group, res)
+            set_group_flag(group.id)
+            return
+
+        #   抽签
+        #   权限：成员
+        #   是否At机器人：是
+        if text == "抽签":
+            res = await draw_lot(group.id, member.id)
             await app.sendGroupMessage(group, res)
             set_group_flag(group.id)
             return
@@ -544,7 +549,7 @@ async def group_at_others_handler(app: GraiaMiraiApplication, message: MessageCh
 
     text = message.asDisplay().replace(' ', '').lower()
 
-    if contains("换lp次数", text):
+    if contains("换lp次数", text.replace("老婆", "lp")):
         clp_times = fetch_clp_times(at_target)
         if clp_times == 0:
             await app.sendGroupMessage(group, MessageChain.create([
@@ -566,10 +571,16 @@ async def group_repeater_handler(app: GraiaMiraiApplication, message: MessageCha
     res = moca_repeater(group.id, message)
     if res[0]:
         if res[1]:
-            await app.sendGroupMessage(group, MessageChain.create([
+            callback = await app.sendGroupMessage(group, MessageChain.create([
                 Image.fromLocalFile(os.path.join(config.resource_path, "fudu", "fudu.jpg"))
             ]))
-        await app.sendGroupMessage(group, message.asSendable())
+            while callback is None:
+                pass
+            time.sleep(0.8)
+            await app.sendGroupMessage(group, message.asSendable())
+            await app.sendGroupMessage(group, message.asSendable())
+        else:
+            await app.sendGroupMessage(group, message.asSendable())
         update_cd(group.id, "repeatCD")
 
 

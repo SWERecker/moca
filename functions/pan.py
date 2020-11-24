@@ -5,13 +5,32 @@ import random
 from graia.application import MessageChain
 from graia.application.message.elements.internal import Plain, At
 
-from function import ucf, get_timestamp_now
+from function import ucf, get_timestamp_now, fetch_config
 
 if os.path.isfile('config.json'):
     with open('config.json', 'r', encoding='utf-8')as cfg_file:
         cfg = json.load(cfg_file)
 else:
     cfg = {"BUY_PAN_INTERVAL": 3600, "SIGNIN_PAN": 5, "BUY_PAN_MIN": 1, "BUY_PAN_MAX": 10, "EAT_PAN_AMOUNT": 1}
+
+TWICE_LP_PAN_AMOUNT = 3
+
+
+def pan_enabled(group: int) -> bool:
+    """
+    检查是否开启面包功能
+
+    :param group:
+    :return:
+    """
+    pan_status = fetch_config(group, "pan")
+    if pan_status is None:
+        return False
+    else:
+        if pan_status == 0:
+            return False
+        else:
+            return True
 
 
 def pan_change(qq: int, amount: int) -> list:
@@ -108,3 +127,21 @@ async def eat_pan(qq: int) -> MessageChain:
             At(target=qq),
             Plain(f" 你吃掉了{cfg.get('EAT_PAN_AMOUNT')}个面包，还剩{res[1]}个面包哦~")
         ])
+
+
+def twice_lp(group: int, member: int):
+    """
+    双倍lp
+
+    :param group: 群号
+    :param member: QQ号
+    :return: [要发发送的图片数量，剩余面包数量]
+    """
+    if pan_enabled(group):
+        result = pan_change(member, -TWICE_LP_PAN_AMOUNT)
+        if result[0]:
+            return [2, result[1]]
+        else:
+            return [1, result[1]]
+    else:
+        return [1, -1]
