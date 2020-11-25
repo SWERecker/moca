@@ -461,7 +461,7 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
                 set_group_flag(group.id)
                 return
 
-        #   随机选歌
+        #   翻译
         #   权限：成员
         #   是否At机器人：否
         #   关联Group Config中的"trans"参数
