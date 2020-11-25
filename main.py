@@ -301,10 +301,10 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
     #   权限：管理员/群主
     #   是否At机器人：否
     if text == "查看当前参数":
-        to_reply_text = f"""当前参数：
-图片cd：{fetch_config(group.id, "replyCD")}秒
-复读cd：{fetch_config(group.id, "repeatCD")}秒
-复读概率：{fetch_config(group.id, "repeatChance")}%"""
+        to_reply_text = "当前参数：\n" \
+                        f"图片cd：{fetch_config(group.id, 'replyCD')}秒\n" \
+                        f"复读cd：{fetch_config(group.id, 'repeatCD')}秒\n" \
+                        f"复读概率：{fetch_config(group.id, 'repeatChance')}%"
         await app.sendGroupMessage(group, MessageChain.create([
             Plain(to_reply_text)
         ]))
@@ -431,9 +431,10 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
                     res_text = f"摩卡吃掉了3个面包，你还剩{res[1]}个面包哦~"
                 else:
                     res_text = "呜呜呜，面包不够吃啦~"
+                    en_twice_lp = False
             file_list = rand_pic(lp_name, pic_num)
             d = [Image.fromLocalFile(e) for e in file_list]
-            if twice_lp:
+            if en_twice_lp:
                 d.insert(0, Plain(res_text))
             await app.sendGroupMessage(group, MessageChain.create(d))
             update_count(group.id, lp_name)
@@ -602,6 +603,8 @@ async def group_at_others_handler(app: GraiaMiraiApplication, message: MessageCh
             await app.sendGroupMessage(group, MessageChain.create([
                 Plain(f"{member.name} 换了{clp_times}次lp了哦~")
             ]))
+        set_group_flag(group.id)
+        return
 
 
 # 复读机
