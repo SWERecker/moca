@@ -789,7 +789,7 @@ async def upload_photo(group: int, message: MessageChain) -> MessageChain:
     category = text[text.index("提交图片"):].lstrip("提交图片").replace("[图片]", "")
     if category == "":
         return MessageChain.create([
-            Plain("错误：请附带分类，例如：提交图片群友b话，再加上图片")
+            Plain("错误：请附带分类，例如：【提交图片群友b话】，再加上图片")
         ])
     if check_para(category):
         return MessageChain.create([
