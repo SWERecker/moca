@@ -45,7 +45,7 @@ async def user_signin(qq: int) -> MessageChain:
             Plain(f"\n{str_time_now} \n初次签到成功！~\n摩卡给你{cfg['SIGNIN_PAN']}个面包哦~\n你现在有{user_own_pan}个面包啦~")
         ])
 
-    if get_timestamp_today_start() < signin_time < get_timestamp_today_end():
+    if get_timestamp_today_start() < signin_time <= get_timestamp_today_end():
         str_signin_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(signin_time))
         return MessageChain.create([
             At(target=qq),

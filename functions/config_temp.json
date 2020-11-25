@@ -4,6 +4,6 @@
   "BUY_PAN_MIN": 1,
   "BUY_PAN_MAX": 10,
   "EAT_PAN_AMOUNT": 1,
-  "appid": "20201008000583298",
-  "secret_key": "VlmtuLz8xod2BLeXjOgL"
+  "appid": "appid",
+  "secret_key": "key"
 }

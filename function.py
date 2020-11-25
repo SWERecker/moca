@@ -379,19 +379,20 @@ def get_group_flag(group: int):
     return False
 
 
-def exp_enabled(group: int) -> bool:
+def cfg_enabled(group: int, para: str, bit=True) -> bool:
     """
-    检查是否启用实验功能
+    检查是否启用功能(默认True)
 
     :param group: 群号
-
+    :param para: 参数
+    :param bit: 默认状态(True)，通过此参数设置群参数未设置时返回的状态
     :return: True/False
     """
-    exp_status = fetch_config(group, "exp")
-    if exp_status is None:
-        return True
+    cfg_status = fetch_config(group, para)
+    if cfg_status is None:
+        return bit
     else:
-        if exp_status == 0:
+        if cfg_status == 0:
             return False
         else:
             return True
@@ -680,9 +681,9 @@ def get_timestamp_today_start() -> int:
 
 def get_timestamp_today_end() -> int:
     """
-    获取今天23：59的时间戳.
+    获取今天23:59:59的时间戳.
 
-    :return: 今天23：59的时间戳
+    :return: 今天23:59:59的时间戳
     """
     return int(time.mktime(time.strptime(str(datetime.date.today() + datetime.timedelta(days=1)), '%Y-%m-%d'))) - 1
 
@@ -800,15 +801,3 @@ async def upload_photo(group: int, message: MessageChain) -> MessageChain:
             data_list.append(message_data[index].get("url"))
     res: MessageChain = await save_image(group, category, data_list)
     return res
-
-
-async def send_repeat_image(app: GraiaMiraiApplication, group: Group, message: MessageChain):
-    """
-
-    :param app: GraiaMiraiApplication
-    :param group: Group
-    :param message: MessageChain
-    :return: None
-    """
-    await app.sendGroupMessage(group, message.asSendable())
-    await app.sendGroupMessage(group, message.asSendable())

@@ -1,6 +1,6 @@
 import asyncio
 import platform
-import threading
+import sys
 
 from graia.application.event.mirai import MemberJoinEvent, BotInvitedJoinGroupRequestEvent, BotJoinGroupEvent, \
     MemberLeaveEventKick
@@ -12,8 +12,10 @@ from graia.application.message.elements.internal import Plain, At, Image
 from graia.broadcast import Broadcast, ExecutionStop
 from graia.broadcast.builtin.decoraters import Depend
 
+from functions.baidu_trans import baidu_translate
 from functions.draw import draw_lot
-from functions.pan import pan_change, buy_pan, eat_pan, pan_enabled, twice_lp
+from functions.pan import pan_change, buy_pan, eat_pan, twice_lp
+from functions.random_song import random_song
 from functions.signin import user_signin
 
 loop = asyncio.get_event_loop()
@@ -156,7 +158,7 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
         set_group_flag(group.id)
         return
 
-    if pan_enabled(group.id):
+    if cfg_enabled(group.id, "pan"):
         #   语音
         #   权限：成员
         #   是否At机器人：是
@@ -199,7 +201,7 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
             sec = int(paras.rstrip("秒").rstrip("s"))
             if sec < 5:
                 await app.sendGroupMessage(group, MessageChain.create([
-                    Plain(f"错误：最短图片cd5秒")
+                    Plain(f"错误：最短图片cd 5秒")
                 ]))
                 return
             update_config(group.id, "replyCD", sec)
@@ -208,7 +210,7 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
             ]))
         except ValueError:
             await app.sendGroupMessage(group, MessageChain.create([
-                Plain("错误：参数错误\n示例：设置图片cd20秒")
+                Plain("错误：参数错误\n示例【设置图片cd20秒】")
             ]))
         set_group_flag(group.id)
         return
@@ -222,7 +224,7 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
             sec = int(paras.rstrip("秒").rstrip("s"))
             if sec < 120:
                 await app.sendGroupMessage(group, MessageChain.create([
-                    Plain(f"错误：最短复读cd120秒")
+                    Plain(f"错误：最短复读cd 120秒")
                 ]))
                 return
             update_config(group.id, "repeatCD", sec)
@@ -231,7 +233,7 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
             ]))
         except ValueError:
             await app.sendGroupMessage(group, MessageChain.create([
-                Plain("错误：参数错误\n示例：设置复读cd20秒")
+                Plain("错误：参数错误\n示例【设置复读cd20秒】")
             ]))
         set_group_flag(group.id)
         return
@@ -254,7 +256,7 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
             ]))
         except ValueError:
             await app.sendGroupMessage(group, MessageChain.create([
-                Plain("错误：参数错误\n示例：设置复读概率25%")
+                Plain("错误：参数错误\n示例【设置复读概率25%】")
             ]))
         set_group_flag(group.id)
         return
@@ -266,7 +268,7 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
         paras = text[5:].replace('，', ',').split(',')
         if not len(paras) == 2:
             await app.sendGroupMessage(group, MessageChain.create([
-                Plain("错误：参数错误\n示例：添加关键词志崎樺音，来点non酱")
+                Plain("错误：参数错误\n示例【添加关键词志崎樺音，来点non酱】")
             ]))
             return
 
@@ -287,7 +289,7 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
         paras = text[5:].replace('，', ',').split(',')
         if not len(paras) == 2:
             await app.sendGroupMessage(group, MessageChain.create([
-                Plain("错误：参数错误\n示例：删除关键词志崎樺音，来点non酱")
+                Plain("错误：参数错误\n示例【删除关键词志崎樺音，来点non酱】")
             ]))
             return
 
@@ -321,10 +323,27 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
             ]))
             set_group_flag(group.id)
             return
+
         if text[2:] == "面包功能":
             update_config(group.id, "pan", int(op))
             await app.sendGroupMessage(group, MessageChain.create([
                 Plain(f"{group.id} 已{text[:2]}面包功能")
+            ]))
+            set_group_flag(group.id)
+            return
+
+        if text[2:] == "随机选歌":
+            update_config(group.id, "random", int(op))
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"{group.id} 已{text[:2]}随机选歌功能")
+            ]))
+            set_group_flag(group.id)
+            return
+
+        if text[2:] == "翻译功能":
+            update_config(group.id, "trans", int(op))
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"{group.id} 已{text[:2]}翻译功能")
             ]))
             set_group_flag(group.id)
             return
@@ -393,7 +412,7 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
 
             if lp_name == "NOT_SET":
                 await app.sendGroupMessage(group, MessageChain.create([
-                    Plain("az，似乎你还没有设置lp呢~\n用”wlp是xxx“来设置一个吧~\n发送 @モカ 关键词 来查看可以设置的列表哦~")
+                    Plain("az，似乎你还没有设置lp呢~\n用【wlp是xxx】来设置一个吧~\n发送【@モカ 关键词】来查看可以设置的列表哦~")
                 ]))
                 return
 
@@ -430,9 +449,32 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
             set_group_flag(group.id)
             return
 
+        #   随机选歌
+        #   权限：成员
+        #   是否At机器人：否
+        #   关联Group Config中的"random"参数
+        if text.startswith('随机选歌'):
+            if cfg_enabled(group.id, "random"):
+                res = await random_song(member.id, text.lower())
+                await app.sendGroupMessage(group, res)
+                set_group_flag(group.id)
+                return
+
+        #   随机选歌
+        #   权限：成员
+        #   是否At机器人：否
+        #   关联Group Config中的"trans"参数
+        if text.startswith('翻译'):
+            if cfg_enabled(group.id, "trans"):
+                res = await baidu_translate(message)
+                await app.sendGroupMessage(group, res)
+                set_group_flag(group.id)
+                return
+
     #   遍历查询是否在关键词列表中并发送图片
     #   权限：成员
     #   是否At机器人：否
+    #   关联Group Config中的"pan"参数
     if not is_in_cd(group.id, "replyCD"):
         group_keywords = fetch_group_keyword(group.id)
         en_twice_lp = text.startswith("多")
@@ -478,7 +520,8 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
             return
 
     # 面包功能开启
-    if pan_enabled(group.id):
+    # 关联Group Config中的"pan"参数
+    if cfg_enabled(group.id, "pan"):
         #   买面包
         #   权限：成员
         #   是否At机器人：否
@@ -529,7 +572,7 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
     Depend(judge_debug_mode),
     Depend(judge_superman)
 ], priority=5)
-async def group_superman_message_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group):
+async def group_superman_message_handler(group: Group):
     if get_group_flag(group.id):
         return
     pass
@@ -632,17 +675,21 @@ async def superman_invite_join_group(event: BotInvitedJoinGroupRequestEvent):
 async def bot_join_group(app: GraiaMiraiApplication, group: Group):
     # 自动发送使用说明
     await app.sendGroupMessage(group, MessageChain.create([
-        Plain(f'大家好，我是mocaBot\n使用说明：http://mocabot.cn/')
+        Plain(f'大家好，我是moca\n使用说明：http://mocabot.cn/\n请仔细查看使用说明并按照格式使用哦！')
     ]))
 
 
 @bcc.receiver(MemberLeaveEventKick, headless_decoraters=[
     Depend(judge_debug_mode)
 ])
-async def superman_kick_from_group(app: GraiaMiraiApplication, member: Member, group: Group):
+async def superman_kick_from_group(
+        app: GraiaMiraiApplication,
+        group: Group,
+        event: MemberLeaveEventKick
+):
     # superman被踢自动退出
-    if is_superman(member.id):
-        print(f"Superman leaving {group.id}")
+    if is_superman(event.member.id):
+        print(f"Superman leaving {group.id}, Quitting")
         await app.quit(group)
 
 
@@ -652,3 +699,4 @@ if __name__ == "__main__":
         gapp.launch_blocking()
     except KeyboardInterrupt:
         print('Terminating App...')
+        sys.exit()
