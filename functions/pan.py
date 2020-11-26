@@ -65,7 +65,7 @@ async def buy_pan(qq: int) -> MessageChain:
         if time_interval < 60:
             str_next_buy_time = f"{time_interval}秒"
         else:
-            str_next_buy_time = f"{int(time_interval / 60)}分钟{time_interval % 60}秒"
+            str_next_buy_time = f"{int(time_interval / 60)}分钟"
         return MessageChain.create([
             At(target=qq),
             Plain(f' 还不能购买呢~\n还要等{str_next_buy_time}才能再买哦~')

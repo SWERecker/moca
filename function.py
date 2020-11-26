@@ -9,7 +9,7 @@ import datetime
 import pymongo
 import redis
 import requests
-from graia.application import MessageChain, Group, GraiaMiraiApplication
+from graia.application import MessageChain
 from graia.application.message.elements.internal import Plain, Image, ImageType
 from pypinyin import lazy_pinyin
 from PIL import Image as ImageLib

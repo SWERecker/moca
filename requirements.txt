@@ -1,0 +1,10 @@
+urllib3
+Image
+websocket-client
+pymongo~=3.11.0
+redis~=3.5.3
+graia-application-mirai
+PrettyTable~=0.7.2
+requests~=2.24.0
+pypinyin~=0.39.0
+Pillow~=7.2.0

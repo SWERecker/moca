@@ -18,7 +18,7 @@ async def draw_lot(group: int, qq: int) -> MessageChain:
     :return: 抽签结果.
     """
     draw_time: int = fetch_user_config(qq, "cqtime")
-    if get_timestamp_today_start() < draw_time < get_timestamp_today_end():
+    if get_timestamp_today_start() < draw_time <= get_timestamp_today_end():
         str_draw_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(draw_time))
         return MessageChain.create([
             At(target=qq),
@@ -41,7 +41,7 @@ async def draw_lot(group: int, qq: int) -> MessageChain:
             res_text = "今日运势：小~吉~"
         else:
             # 凶
-            res_text = "今日运势：凶！？"
+            res_text = "今日运势：凶！？..."
         draw_result = [
             At(target=qq), Plain("\n"), Plain(res_text), Plain("\n"), Plain(f"今天的幸运数字是：{random.randint(1, 10)}")
         ]

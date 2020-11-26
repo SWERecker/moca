@@ -75,12 +75,6 @@ def judge_manager(member: Member):
         raise ExecutionStop()
 
 
-#   判断是否是超管
-def judge_superman(member: Member):
-    if not is_superman(member.id):
-        raise ExecutionStop()
-
-
 @bcc.receiver(GroupMessage, headless_decoraters=[
     Depend(judge_debug_mode)
 ], priority=1)
@@ -183,10 +177,9 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
 # Manager的群消息监听器
 @bcc.receiver(GroupMessage, headless_decoraters=[
     Depend(judge_debug_mode),
-    Depend(judge_manager),
-    Depend(judge_superman)
+    Depend(judge_manager)
 ], priority=3)
-async def group_manager_message_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group):
+async def group_manager_message_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group, member: Member):
     if get_group_flag(group.id):
         return
 
@@ -347,6 +340,10 @@ async def group_manager_message_handler(app: GraiaMiraiApplication, message: Mes
             ]))
             set_group_flag(group.id)
             return
+
+    # 超管管理指令
+    if is_superman(member.id):
+        pass
 
 
 # 常规消息处理器
@@ -566,17 +563,6 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
             await app.sendGroupMessage(group, res)
             set_group_flag(group.id)
             return
-
-
-# 超管处理器
-@bcc.receiver(GroupMessage, headless_decoraters=[
-    Depend(judge_debug_mode),
-    Depend(judge_superman)
-], priority=5)
-async def group_superman_message_handler(group: Group):
-    if get_group_flag(group.id):
-        return
-    pass
 
 
 # At了除机器人外的任意成员的监听器

@@ -57,13 +57,14 @@ async def baidu_translate(message: MessageChain) -> MessageChain:
                 Plain("错误：未设置AppID或SecretKey\n请联系开发者")
             ])
         try:
-            trans_content = message.asDisplay()[message.asDisplay().index('翻译'):]
+            trans_content = message.asDisplay()[message.asDisplay().index('翻译') + 2:]
             from_lang = 'auto'
             to_lang = 'zh'
             salt = random.randint(32768, 65536)
             sign = cfg["appid"] + trans_content + str(salt) + cfg["secret_key"]
             sign = hashlib.md5(sign.encode()).hexdigest()
-            api_url = f'{trans_url}?appid={cfg["appid"]}&q={urllib.parse.quote(trans_content)}&from={from_lang}&to={to_lang}&salt={salt}&sign={sign}'
+            api_url = f'{trans_url}?appid={cfg["appid"]}&q={urllib.parse.quote(trans_content)}' \
+                      f'&from={from_lang}&to={to_lang}&salt={salt}&sign={sign}'
             res = requests.get(api_url)
             dict_res = json.loads(res.text)
             if 'error_code' in dict_res:
