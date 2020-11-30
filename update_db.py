@@ -17,10 +17,11 @@ if __name__ == "__main__":
             categories = file.split('.')[0].split('_')[0].split(',')
 
             for cat in categories:
-                if cat not in db:
-                    db[cat] = []
-                file_path = os.path.join(abs_path, root, file)
-                db[cat].append(file_path)
+                if not cat == ".user":
+                    if cat not in db:
+                        db[cat] = []
+                    file_path = os.path.join(abs_path, root, file)
+                    db[cat].append(file_path)
     print(db.keys())
     print(len(db.keys()))
     for cat, files in db.items():

@@ -126,3 +126,7 @@ dmypy.json
 
 # Custom rule
 .idea/
+log/
+resource/keai/*
+resource/pa/*
+resource/voice/*
