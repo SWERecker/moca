@@ -212,11 +212,15 @@ def is_superman(member_id: int) -> bool:
 
     :return: True/False
     """
+    superman_file_path = os.path.join(
+        config.resource_path,
+        "superman.json"
+    )
     if not os.path.isfile('superman.json'):
-        with open('superman.json', 'w+')as superman_file:
+        with open(superman_file_path, 'w+')as superman_file:
             init_data = {"superman": [0]}
             superman_file.write(json.dumps(init_data, indent=4))
-    with open('superman.json', 'r')as superman_file:
+    with open(superman_file_path, 'r')as superman_file:
         data = json.load(superman_file)
     if member_id in data["superman"]:
         return True
