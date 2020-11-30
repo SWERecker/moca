@@ -130,3 +130,5 @@ log/
 resource/keai/*
 resource/pa/*
 resource/voice/*
+debug
+resource/superman.json

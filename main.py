@@ -17,7 +17,7 @@ from functions.draw import draw_lot
 from functions.pan import pan_change, buy_pan, eat_pan, twice_lp
 from functions.random_song import random_song
 from functions.signin import user_signin
-
+debug_mode = os.path.isfile("debug")
 loop = asyncio.get_event_loop()
 bcc = Broadcast(loop=loop)
 
@@ -32,7 +32,7 @@ gapp = GraiaMiraiApplication(
     enable_chat_log=False
 )
 
-debug_mode = True
+
 TWICE_LP_PAN_AMOUNT = 3
 UPLOAD_PHOTO_PAN_AMOUNT = 1
 
@@ -179,7 +179,12 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
     Depend(judge_debug_mode),
     Depend(judge_manager)
 ], priority=3)
-async def group_manager_message_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group, member: Member):
+async def group_manager_message_handler(
+        app: GraiaMiraiApplication,
+        message: MessageChain,
+        group: Group,
+        member: Member
+):
     if get_group_flag(group.id):
         return
 
@@ -636,7 +641,8 @@ async def group_repeater_handler(app: GraiaMiraiApplication, message: MessageCha
 ], priority=16)
 async def flag_handler(group: Group):
     # update files list
-    if get_timestamp_now() - gol.get_value('file_list_update_time') > 300:
+    if get_timestamp_now() - gol.get_value('file_list_update_time') > 60:
+        print("updating file list")
         gol.set_value('file_list_update_time', get_timestamp_now())
         if platform.system() == 'Windows':
             pass
@@ -644,6 +650,7 @@ async def flag_handler(group: Group):
         else:
             pass
             # os.system('python update_db.py &')
+        init_mocabot()
 
     # Reset group flag
     gol.set_value(f'group_{group.id}_processed', False)

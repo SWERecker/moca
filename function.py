@@ -216,7 +216,7 @@ def is_superman(member_id: int) -> bool:
         config.resource_path,
         "superman.json"
     )
-    if not os.path.isfile('superman.json'):
+    if not os.path.isfile(superman_file_path):
         with open(superman_file_path, 'w+')as superman_file:
             init_data = {"superman": [0]}
             superman_file.write(json.dumps(init_data, indent=4))
