@@ -469,6 +469,20 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
                 set_group_flag(group.id)
                 return
 
+        #   青年大学习
+        #   权限：成员
+        #   是否At机器人：否
+        if contains("青年大学习", text):
+            try:
+                with open(os.path.join(config.resource_path, "qndxx.txt"), "r", encoding="utf-8")as f:
+                    await app.sendGroupMessage(group, MessageChain.create([
+                        Plain(f.read())
+                    ]))
+            except FileNotFoundError:
+                pass
+            set_group_flag(group.id)
+            return
+
     #   遍历查询是否在关键词列表中并发送图片
     #   权限：成员
     #   是否At机器人：否
