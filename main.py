@@ -487,6 +487,24 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
             set_group_flag(group.id)
             return
 
+        #   换lp次数
+        #   权限：成员
+        #   是否At机器人：否
+        if contains("换lp次数", text.replace("老婆", "lp")):
+            clp_times = fetch_clp_times(member.id)
+            if clp_times == 0:
+                await app.sendGroupMessage(group, MessageChain.create([
+                    At(target=member.id),
+                    Plain(f" 你还没有换过lp呢~")
+                ]))
+            else:
+                await app.sendGroupMessage(group, MessageChain.create([
+                    At(target=member.id),
+                    Plain(f" 你换了{clp_times}次lp了哦~")
+                ]))
+            set_group_flag(group.id)
+            return
+
     #   遍历查询是否在关键词列表中并发送图片
     #   权限：成员
     #   是否At机器人：否
