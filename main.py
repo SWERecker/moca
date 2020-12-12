@@ -168,7 +168,7 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
                 update_user_cd(member.id, "voice", 10)
             else:
                 await app.sendGroupMessage(group, MessageChain.create([
-                    Plain("要~给~摩~卡~面~包~才~跟~你~说~话~哦~")
+                    Plain("要~给~摩~卡~酱~面~包~才~跟~你~说~话~哦~")
                 ]))
             set_group_flag(group.id)
             return
@@ -434,8 +434,7 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
                 else:
                     res_text = "呜呜呜，面包不够吃啦~"
                     en_twice_lp = False
-            file_list = rand_pic(lp_name, pic_num)
-            d = [Image.fromLocalFile(e) for e in file_list]
+            d = [Image.fromLocalFile(e) for e in rand_pic(lp_name, pic_num)]
             if en_twice_lp:
                 d.insert(0, Plain(res_text))
             await app.sendGroupMessage(group, MessageChain.create(d))

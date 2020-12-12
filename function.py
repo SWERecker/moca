@@ -490,11 +490,13 @@ def user_set_lp(qq: int, group: int, lp_name: str) -> list:
     else:
         res = ucf.update_one({"qq": qq}, {"$set": {"lp": lp_name}})
         if res.modified_count == 0:
-            ucf.insert_one({"qq": qq, "lp": lp_name})
+            ucf.insert_one({"qq": qq, "lp": lp_name, "clp_time": 0})
+        else:
+            ucf.update_one({"qq": qq}, {"$inc": {"clp_time": 1}})
         return [True, lp_name]
 
 
-def fetch_user_lp(qq: int, group: int) -> list:
+def fetch_user_lp(qq: int, group: int) -> str:
     """
     获取用户设置的lp.
 
