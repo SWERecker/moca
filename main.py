@@ -174,11 +174,39 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
             return
 
 
+# At了除机器人外的任意成员的监听器
+@bcc.receiver(GroupMessage, headless_decoraters=[
+    Depend(judge_debug_mode),
+    Depend(judge_at_others)
+], priority=3)
+async def group_at_others_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group, member: Member):
+    if get_group_flag(group.id):
+        return
+
+    at_data = message.get(At)[0].dict()
+    at_target: int = at_data['target']
+
+    text = message.asDisplay().replace(' ', '').lower()
+
+    if contains("换lp次数", text.replace("老婆", "lp")):
+        clp_times = fetch_clp_times(at_target)
+        if clp_times == 0:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"{member.name} 还没有换过lp呢~")
+            ]))
+        else:
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"{member.name} 换了{clp_times}次lp了哦~")
+            ]))
+        set_group_flag(group.id)
+        return
+
+
 # Manager的群消息监听器
 @bcc.receiver(GroupMessage, headless_decoraters=[
     Depend(judge_debug_mode),
     Depend(judge_manager)
-], priority=3)
+], priority=4)
 async def group_manager_message_handler(
         app: GraiaMiraiApplication,
         message: MessageChain,
@@ -599,34 +627,6 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
             await app.sendGroupMessage(group, res)
             set_group_flag(group.id)
             return
-
-
-# At了除机器人外的任意成员的监听器
-@bcc.receiver(GroupMessage, headless_decoraters=[
-    Depend(judge_debug_mode),
-    Depend(judge_at_others)
-], priority=4)
-async def group_at_others_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group, member: Member):
-    if get_group_flag(group.id):
-        return
-
-    at_data = message.get(At)[0].dict()
-    at_target: int = at_data['target']
-
-    text = message.asDisplay().replace(' ', '').lower()
-
-    if contains("换lp次数", text.replace("老婆", "lp")):
-        clp_times = fetch_clp_times(at_target)
-        if clp_times == 0:
-            await app.sendGroupMessage(group, MessageChain.create([
-                Plain(f"{member.name} 还没有换过lp呢~")
-            ]))
-        else:
-            await app.sendGroupMessage(group, MessageChain.create([
-                Plain(f"{member.name} 换了{clp_times}次lp了哦~")
-            ]))
-        set_group_flag(group.id)
-        return
 
 
 # 复读机
