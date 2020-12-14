@@ -354,7 +354,7 @@ async def group_manager_message_handler(
 # 常规消息处理器
 @bcc.receiver(GroupMessage, headless_decoraters=[
     Depend(judge_debug_mode)
-], priority=4)
+], priority=5)
 async def group_message_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group, member: Member):
     if get_group_flag(group.id):
         return
@@ -605,7 +605,7 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
 @bcc.receiver(GroupMessage, headless_decoraters=[
     Depend(judge_debug_mode),
     Depend(judge_at_others)
-], priority=6)
+], priority=4)
 async def group_at_others_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group, member: Member):
     if get_group_flag(group.id):
         return
