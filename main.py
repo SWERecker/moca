@@ -185,6 +185,7 @@ async def group_at_others_handler(app: GraiaMiraiApplication, message: MessageCh
 
     at_data = message.get(At)[0].dict()
     at_target: int = at_data['target']
+    at_target_name: str = at_data['display'].lstrip("@")
 
     text = message.asDisplay().replace(' ', '').lower()
 
@@ -192,11 +193,11 @@ async def group_at_others_handler(app: GraiaMiraiApplication, message: MessageCh
         clp_times = fetch_clp_times(at_target)
         if clp_times == 0:
             await app.sendGroupMessage(group, MessageChain.create([
-                Plain(f"{member.name} 还没有换过lp呢~")
+                Plain(f"{at_target_name} 还没有换过lp呢~")
             ]))
         else:
             await app.sendGroupMessage(group, MessageChain.create([
-                Plain(f"{member.name} 换了{clp_times}次lp了哦~")
+                Plain(f"{at_target_name} 换了{clp_times}次lp了哦~")
             ]))
         set_group_flag(group.id)
         return
