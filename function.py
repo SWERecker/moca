@@ -3,6 +3,7 @@ import json
 import os
 import random
 import re
+import sys
 import time
 import datetime
 
@@ -17,10 +18,12 @@ from PIL import ImageDraw, ImageFont
 from prettytable import PrettyTable
 import global_var as gol
 
-if not os.path.isfile('config.py'):
-    import config_template as config
-else:
-    import config
+try:
+    with open('config.json', 'r', encoding='utf-8')as cfg:
+        config = json.load(cfg)
+except FileNotFoundError:
+    print("Config File Not Found!")
+    sys.exit()
 
 client = pymongo.MongoClient(host='localhost', port=27017)
 db1 = client['moca']
@@ -45,7 +48,7 @@ def init_group(group: int):
     if not gol.value_exist(f"KEYWORD_{group}"):
         print(f'=========初始化 {group}=========')
         with open(
-                os.path.join(config.resource_path, "template", "key_template.json"),
+                os.path.join(config.get("resource_path"), "template", "key_template.json"),
                 'r',
                 encoding='utf-8'
         )as key_template_file:
@@ -55,7 +58,7 @@ def init_group(group: int):
         gol.set_value(f"KEYWORD_{group}", key_template['keyword'])
 
         with open(
-                os.path.join(config.resource_path, "template", "config_template.json"),
+                os.path.join(config.get("resource_path"), "template", "config_template.json"),
                 'r',
                 encoding='utf-8'
         )as config_template_file:
@@ -213,7 +216,7 @@ def is_superman(member_id: int) -> bool:
     :return: True/False
     """
     superman_file_path = os.path.join(
-        config.resource_path,
+        config.get("resource_path"),
         "superman.json"
     )
     if not os.path.isfile(superman_file_path):
@@ -310,9 +313,9 @@ def create_dict_pic(data: dict, group_id_with_type: str, title: str, sort_by_val
     :return: 图片文件的目录, 写入{temp_path}/{名称}.png
     """
     tab = PrettyTable(border=False, header=True, header_style='title')
-    font_file = os.path.join(config.resource_path, "font", "PingFang.ttf")
-    bg_file = os.path.join(config.resource_path, "template", "bg.png")
-    new_img_file = os.path.join(config.temp_path, f"{group_id_with_type}.png")
+    font_file = os.path.join(config.get("resource_path"), "font", "PingFang.ttf")
+    bg_file = os.path.join(config.get("resource_path"), "template", "bg.png")
+    new_img_file = os.path.join(config.get("temp_path"), f"{group_id_with_type}.png")
     # 设置表头
     tab.field_names = ["名称", title]
     tab.align["名称"] = "l"
@@ -443,9 +446,9 @@ def random_moca_pa():
 
     :return:
     """
-    random_file = random.choice(os.listdir(os.path.join(config.resource_path, "pa")))
+    random_file = random.choice(os.listdir(os.path.join(config.get("resource_path"), "pa")))
     return MessageChain.create([
-        Image.fromLocalFile(os.path.join(config.resource_path, 'pa', random_file))
+        Image.fromLocalFile(os.path.join(config.get("resource_path"), 'pa', random_file))
     ])
 
 
@@ -455,9 +458,9 @@ def random_moca_keai():
 
     :return:
     """
-    random_file = random.choice(os.listdir(os.path.join(config.resource_path, "keai")))
+    random_file = random.choice(os.listdir(os.path.join(config.get("resource_path"), "keai")))
     return MessageChain.create([
-        Image.fromLocalFile(os.path.join(config.resource_path, 'keai', random_file))
+        Image.fromLocalFile(os.path.join(config.get("resource_path"), 'keai', random_file))
     ])
 
 
@@ -707,24 +710,24 @@ def moca_repeater(group: int, message: MessageChain) -> [bool, bool]:
 
     exist_data: dict = gol.get_value(f"{group}_repeater")
     m_count = exist_data.get('m_count')
-    excludeSourceMessage = re.sub(r"(?:\[mirai:source?:(.*?)?\])", "", message.asSerializationString())
+    message_excluded_source = re.sub(r"(?:\[mirai:source?:(.*?)?\])", "", message.asSerializationString())
     if m_count == 0:
-        exist_data['m_cache_0'] = excludeSourceMessage
+        exist_data['m_cache_0'] = message_excluded_source
         exist_data['m_count'] = 1
     if m_count == 1:
-        exist_data['m_cache_1'] = excludeSourceMessage
+        exist_data['m_cache_1'] = message_excluded_source
         exist_data['m_count'] = 2
     if m_count == 2:
         exist_data['m_cache_0'] = exist_data['m_cache_1']
-        exist_data['m_cache_1'] = excludeSourceMessage
+        exist_data['m_cache_1'] = message_excluded_source
 
     gol.set_value(f"{group}_repeater", exist_data)
     # 缓存消息 ===
     if not is_in_cd(group, "repeatCD"):
-        if not exist_data.get('m_last_repeat') == excludeSourceMessage:
+        if not exist_data.get('m_last_repeat') == message_excluded_source:
             if exist_data.get('m_cache_0') == exist_data.get('m_cache_1'):
                 if random_do(fetch_config(group, "repeatChance")):
-                    exist_data['m_last_repeat'] = excludeSourceMessage
+                    exist_data['m_last_repeat'] = message_excluded_source
                     gol.set_value(f"{group}_repeater", exist_data)
                     if random_do(5):
                         return [True, True]
@@ -742,15 +745,14 @@ async def save_image(group: int, category: str, urls: list) -> MessageChain:
     :param category: 图片分类
     :return: 结果MessageChain
     """
-    # upload/{群号}/月-日/{imageId}.{imageType}
+    # upload/{群号}/{分类}/{imageId}.{imageType}
     success_count = 0
     failed_count = 0
     err_text = ""
     file_path = os.path.join(
-        config.temp_path,
+        config.get("temp_path"),
         'upload',
         str(group),
-        time.strftime("%m-%d"),
         category
     )
     if not os.path.exists(file_path):

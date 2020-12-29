@@ -1,6 +1,5 @@
 import asyncio
 import platform
-import sys
 
 from graia.application.event.mirai import MemberJoinEvent, BotInvitedJoinGroupRequestEvent, BotJoinGroupEvent, \
     MemberLeaveEventKick
@@ -14,19 +13,22 @@ from graia.broadcast.builtin.decoraters import Depend
 
 from functions.baidu_trans import baidu_translate
 from functions.draw import draw_lot
+from functions.exclam_exec import exclam_exec_processor
 from functions.pan import pan_change, buy_pan, eat_pan, twice_lp
 from functions.random_song import random_song
 from functions.signin import user_signin
 debug_mode = os.path.isfile("debug")
+
+
 loop = asyncio.get_event_loop()
 bcc = Broadcast(loop=loop)
 
 gapp = GraiaMiraiApplication(
     broadcast=bcc,
     connect_info=Session(
-        host=config.server_addr,  # 填入 httpapi 服务运行的地址
-        authKey=config.auth_key,  # 填入 authKey
-        account=config.bot_id,  # 你的机器人的 qq 号
+        host=config.get("server_addr"),  # 填入 httpapi 服务运行的地址
+        authKey=config.get("auth_key"),  # 填入 authKey
+        account=config.get("bot_id"),  # 你的机器人的 qq 号
         websocket=True  # Graia 已经可以根据所配置的消息接收的方式来保证消息接收部分的正常运作.
     ),
     enable_chat_log=False
@@ -50,7 +52,7 @@ def judge_at_bot(message: MessageChain):
     if At in message:
         at_data = message.get(At)[0].dict()
         at_target: int = at_data['target']
-        at_bot: bool = at_target == config.bot_id
+        at_bot: bool = at_target == config.get("bot_id")
     if not at_bot:
         raise ExecutionStop()
 
@@ -61,7 +63,7 @@ def judge_at_others(message: MessageChain):
     if At in message:
         at_data = message.get(At)[0].dict()
         at_target: int = at_data['target']
-        at_others: bool = not at_target == config.bot_id
+        at_others: bool = not at_target == config.get("bot_id")
     if not at_others:
         raise ExecutionStop()
 
@@ -179,7 +181,7 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
     Depend(judge_debug_mode),
     Depend(judge_at_others)
 ], priority=3)
-async def group_at_others_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group, member: Member):
+async def group_at_others_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group):
     if get_group_flag(group.id):
         return
 
@@ -375,6 +377,14 @@ async def group_manager_message_handler(
             set_group_flag(group.id)
             return
 
+        if text[2:] == "指令功能":
+            update_config(group.id, "command", int(op))
+            await app.sendGroupMessage(group, MessageChain.create([
+                Plain(f"{group.id} 已{text[:2]}!指令功能")
+            ]))
+            set_group_flag(group.id)
+            return
+
     # 超管管理指令
     if is_superman(member.id):
         pass
@@ -507,7 +517,7 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
         #   是否At机器人：否
         if contains("青年大学习", text):
             try:
-                with open(os.path.join(config.resource_path, "qndxx.txt"), "r", encoding="utf-8")as f:
+                with open(os.path.join(config.get("resource_path"), "qndxx.txt"), "r", encoding="utf-8")as f:
                     await app.sendGroupMessage(group, MessageChain.create([
                         Plain(f.read())
                     ]))
@@ -641,7 +651,7 @@ async def group_repeater_handler(app: GraiaMiraiApplication, message: MessageCha
     if res[0]:
         if res[1]:
             callback = await app.sendGroupMessage(group, MessageChain.create([
-                Image.fromLocalFile(os.path.join(config.resource_path, "fudu", "fudu.jpg"))
+                Image.fromLocalFile(os.path.join(config.get("resource_path"), "fudu", "fudu.jpg"))
             ]))
             while callback is None:
                 pass
@@ -672,6 +682,33 @@ async def flag_handler(group: Group):
 
     # Reset group flag
     gol.set_value(f'group_{group.id}_processed', False)
+
+
+# !指令处理器
+@bcc.receiver(GroupMessage, headless_decoraters=[
+    Depend(judge_debug_mode)
+], priority=13)
+async def exlcam_exec_handler(app: GraiaMiraiApplication, message: MessageChain, group: Group, member: Member):
+    if get_group_flag(group.id):
+        return
+    if cfg_enabled(group.id, "command"):
+        if is_in_user_cd(member.id, "command"):
+            return
+        text = message.asDisplay().replace("！", "!").strip()
+        if text.startswith("!"):
+            if check_para(text):
+                await app.sendGroupMessage(group, MessageChain.create([
+                    Plain("错误：参数中含有禁止的特殊符号!")
+                ]))
+                set_group_flag(group.id)
+                return
+            else:
+                res = exclam_exec_processor(text.lstrip("!"))
+                if res:
+                    await app.sendGroupMessage(group, res)
+                    update_user_cd(member.id, "command", 5)
+                    set_group_flag(group.id)
+                    return
 
 
 @bcc.receiver(MemberJoinEvent, headless_decoraters=[
