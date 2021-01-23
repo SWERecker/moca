@@ -229,10 +229,8 @@ def is_superman(member_id: int) -> bool:
     with open(superman_file_path, 'r')as superman_file:
         data = json.load(superman_file)
     if member_id in data["superman"]:
-        print("is Superman")
         return True
     else:
-        print("not Superman")
         return False
 
 
