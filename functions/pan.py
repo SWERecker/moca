@@ -1,12 +1,25 @@
 import random
+import time
 
 from graia.application import MessageChain
 from graia.application.message.elements.internal import Plain, At
 
-from function import ucf, get_timestamp_now, cfg_enabled
+from function import ucf, get_timestamp_now, cfg_enabled, pl
 from functions.fun_cfg import cfg
 
 TWICE_LP_PAN_AMOUNT = 3
+
+
+def pan_log(qq: int, amount: int, reason: str):
+    """
+    面包变化记录.
+
+    :param qq: 用户QQ
+    :param amount: 变化的数量(以正负区别增加、消耗)
+    :param reason: 变化原因
+    :return: 无
+    """
+    pl.insert_one({"time": get_timestamp_now(), "qq": qq, "pan": amount, "reason": reason})
 
 
 def pan_change(qq: int, amount: int) -> list:
@@ -80,6 +93,7 @@ async def buy_pan(qq: int) -> MessageChain:
     if res.modified_count == 0:
         ucf.insert_one(data)
     ucf.update_one({"qq": qq}, {"$inc": {'buy_count': 1}})
+    pan_log(qq, buy_amount, "买面包")
     return MessageChain.create([
         At(target=qq),
         Plain(f' 成功购买了{buy_amount}个面包哦~\n你现在有{user_own_pan}个面包啦~')
@@ -99,6 +113,7 @@ async def eat_pan(qq: int) -> MessageChain:
             At(target=qq),
             Plain(' 面包不够吃了QAQ...')
         ])
+    pan_log(qq, -cfg.get('EAT_PAN_AMOUNT'), "吃面包")
     return MessageChain.create([
             At(target=qq),
             Plain(f" 你吃掉了{cfg.get('EAT_PAN_AMOUNT')}个面包，还剩{res[1]}个面包哦~")
@@ -116,6 +131,7 @@ def twice_lp(group: int, member: int):
     if cfg_enabled(group, "pan"):
         result = pan_change(member, -TWICE_LP_PAN_AMOUNT)
         if result[0]:
+            pan_log(member, -TWICE_LP_PAN_AMOUNT, "双倍lp")
             return [2, result[1]]
         else:
             return [1, result[1]]

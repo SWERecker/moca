@@ -6,6 +6,8 @@ import requests
 from graia.application import MessageChain
 from graia.application.message.elements.internal import Plain, At, Image
 
+from function import moca_log
+
 random_url = 'https://api.mocabot.cn/api'
 
 dictionary = {
@@ -130,9 +132,12 @@ async def random_song(member: int, text: str) -> MessageChain:
     result_level = dictionary['level'].get(result_song.get('level'))
     result_diff = result_song.get('diff')
     result_type = dictionary['type'].get(result_song.get('type'))
+    result_str = f'\n有效筛选条件：乐队：{query["band"]} 难度：{query["diff"]} 类型：{query["level"]}\n' \
+                 f'选歌结果：\n{result_name} - {result_band}\n{result_level} {result_diff} {result_type}曲'\
+        .replace("None", "无")
+
+    moca_log(result_str, qq=member)
     return MessageChain.create([
         At(target=member),
-        Plain(f'\n有效筛选条件：乐队：{query["band"]} 难度：{query["diff"]} 类型：{query["level"]}\n选歌结果：\n'
-              f"{result_name} - {result_band}\n{result_level} {result_diff} {result_type}曲"
-              .replace("None", "无"))
+        Plain(result_str)
     ])

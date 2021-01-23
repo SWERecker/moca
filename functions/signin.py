@@ -7,8 +7,10 @@ from graia.application.message.elements.internal import At, Plain
 from function import ucf, get_timestamp_now, get_timestamp_today_start, get_timestamp_today_end
 import os
 
-if os.path.isfile('config.json'):
-    with open('config.json', 'r', encoding='utf-8')as cfg_file:
+from functions.pan import pan_log
+
+if os.path.isfile('functions/config.json'):
+    with open('functions/config.json', 'r', encoding='utf-8')as cfg_file:
         cfg = json.load(cfg_file)
 else:
     cfg = {"BUY_PAN_INTERVAL": 3600, "SIGNIN_PAN": 5, "BUY_PAN_MIN": 1, "BUY_PAN_MAX": 10, "EAT_PAN_AMOUNT": 1}
@@ -60,6 +62,7 @@ async def user_signin(qq: int) -> MessageChain:
     data['sum_day'] = sum_day
     str_time_now = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(signin_time))
     ucf.update_one({"qq": qq}, {"$set": data})
+    pan_log(qq, cfg['SIGNIN_PAN'], "签到")
     return MessageChain.create([
         At(target=qq),
         Plain(f"\n{str_time_now} 签到成功，摩卡给你{cfg['SIGNIN_PAN']}个面包哦~\n"

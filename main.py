@@ -14,7 +14,7 @@ from graia.broadcast.builtin.decoraters import Depend
 from functions.baidu_trans import baidu_translate
 from functions.draw import draw_lot
 from functions.exclam_exec import exclam_exec_processor
-from functions.pan import pan_change, buy_pan, eat_pan, twice_lp
+from functions.pan import pan_change, buy_pan, eat_pan, twice_lp, pan_log
 from functions.random_song import random_song
 from functions.signin import user_signin
 debug_mode = os.path.isfile("debug")
@@ -106,6 +106,7 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
         await app.sendGroupMessage(group, MessageChain.create([
             Image.fromLocalFile(pic_path)]
         ))
+        moca_log(f"发送图片：{pic_path}", group=group.id)
         set_group_flag(group.id)
         return
 
@@ -121,6 +122,7 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
         await app.sendGroupMessage(group, MessageChain.create([
             Image.fromLocalFile(pic_path)]
         ))
+        moca_log(f"发送图片：{pic_path}", group=group.id)
         set_group_flag(group.id)
         return
 
@@ -136,6 +138,7 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
         await app.sendGroupMessage(group, MessageChain.create([
             Image.fromLocalFile(pic_path)
         ]))
+        moca_log(f"发送图片：{pic_path}", group=group.id)
         set_group_flag(group.id)
         return
 
@@ -151,6 +154,7 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
         await app.sendGroupMessage(group, MessageChain.create([
             Image.fromLocalFile(pic_path)
         ]))
+        moca_log(f"发送图片：{pic_path}", group=group.id)
         set_group_flag(group.id)
         return
 
@@ -162,6 +166,7 @@ async def group_at_bot_message_handler(app: GraiaMiraiApplication, message: Mess
             if is_in_user_cd(member.id, "voice"):
                 return
             result = pan_change(member.id, -1)
+            pan_log(member.id, -1, "语音")
             if result[0]:
                 voice_file = random.choice(os.listdir(os.path.join('resource', 'voice')))
                 with open(os.path.join('resource', 'voice', voice_file), 'rb')as voice_bin_file:
@@ -477,6 +482,7 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
             if en_twice_lp:
                 d.insert(0, Plain(res_text))
             await app.sendGroupMessage(group, MessageChain.create(d))
+            moca_log(f"发送图片：{str(d)}", group=group.id)
             update_count(group.id, lp_name)
             set_group_flag(group.id)
             return
@@ -509,6 +515,7 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
             if cfg_enabled(group.id, "trans"):
                 res = await baidu_translate(message)
                 await app.sendGroupMessage(group, res)
+                moca_log(res.asDisplay(), group=group.id)
                 set_group_flag(group.id)
                 return
 
@@ -587,6 +594,7 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
             if en_twice_lp:
                 d.insert(0, Plain(res_text))
             await app.sendGroupMessage(group, MessageChain.create(d))
+            moca_log(f"发送图片：{str(d)}", group=group.id)
             update_count(group.id, req_name)
             set_group_flag(group.id)
             update_cd(group.id, "replyCD")
@@ -669,7 +677,7 @@ async def group_repeater_handler(app: GraiaMiraiApplication, message: MessageCha
 ], priority=16)
 async def flag_handler(group: Group):
     # update files list
-    if get_timestamp_now() - gol.get_value('file_list_update_time') > 60:
+    if get_timestamp_now() - gol.get_value('file_list_update_time') > 300:
         print("updating file list")
         gol.set_value('file_list_update_time', get_timestamp_now())
         if platform.system() == 'Windows':

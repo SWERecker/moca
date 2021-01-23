@@ -23,7 +23,7 @@ def exclam_exec_processor(_data: str) -> MessageChain:
             ])
         else:
             return MessageChain.create([
-                Plain("错误：参数数量不足")
+                Plain("错误：参数数量不足\n例子：!r 吃饭 睡觉")
             ])
 
     if command == "rd":
@@ -46,7 +46,7 @@ def exclam_exec_processor(_data: str) -> MessageChain:
                 ])
             else:
                 return MessageChain.create([
-                    Plain(f"错误：参数数量错误")
+                    Plain(f"错误：参数数量错误\n例子：!rd 1 1 6")
                 ])
         except Exception as e:
             return MessageChain.create([
@@ -57,7 +57,7 @@ def exclam_exec_processor(_data: str) -> MessageChain:
         try:
             if len(paras) == 1:
                 return MessageChain.create([
-                    Plain(f"群内{paras[0]}为：{random.randint(0, 100)}")
+                    Plain(f"{paras[0]}为：{random.randint(0, 100)}")
                 ])
         except Exception as e:
             return MessageChain.create([

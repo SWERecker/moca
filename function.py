@@ -31,6 +31,8 @@ gcf = db1['group_config']
 ucf = db1['user_config']
 gkw = db1['group_keyword']
 gc = db1['group_count']
+pl = db1['pan_log']
+ml = db1['moca_log']
 
 cache_pool = redis.ConnectionPool(host='localhost', port=6379, db=3, decode_responses=True)
 rc = redis.Redis(connection_pool=cache_pool)
@@ -89,6 +91,7 @@ def update_config(group: int, arg: str, value):
     :return: 新参数值
     """
     gcf.update_one({"group": group}, {"$set": {arg: value}})
+    moca_log(f"设置参数：{arg}={value}", group=group)
     return value
 
 
@@ -226,8 +229,10 @@ def is_superman(member_id: int) -> bool:
     with open(superman_file_path, 'r')as superman_file:
         data = json.load(superman_file)
     if member_id in data["superman"]:
+        print("is Superman")
         return True
     else:
+        print("not Superman")
         return False
 
 
@@ -496,6 +501,7 @@ def user_set_lp(qq: int, group: int, lp_name: str) -> list:
             ucf.insert_one({"qq": qq, "lp": lp_name, "clp_time": 0})
         else:
             ucf.update_one({"qq": qq}, {"$inc": {"clp_time": 1}})
+        moca_log(f"设置lp：{qq}={lp_name}", group=group)
         return [True, lp_name]
 
 
@@ -559,6 +565,7 @@ def append_keyword(group: int, paras: list):
 
         gol.set_value(f"KEYWORD_{group}", group_keywords)
         gkw.find_one_and_update({"group": group}, {"$set": {"keyword": group_keywords}})
+        moca_log(f"向{paras[0]}中添加关键词：{paras[1]}", group=group)
         return MessageChain.create([
             Plain(f"向{paras[0]}中添加了关键词：{paras[1]}")
         ])
@@ -591,6 +598,7 @@ def remove_keyword(group: int, paras: list):
             group_keywords[name] = group_keywords[name].rstrip("|")
             gol.set_value(f"KEYWORD_{group}", group_keywords)
             gkw.find_one_and_update({"group": group}, {"$set": {"keyword": group_keywords}})
+            moca_log(f"向{paras[0]}中删除关键词：{paras[1]}", group=group)
             return MessageChain.create([
                 Plain(f"删除了{paras[0]}中的关键词：{paras[1]}")
             ])
@@ -749,6 +757,7 @@ async def save_image(group: int, category: str, urls: list) -> MessageChain:
     success_count = 0
     failed_count = 0
     err_text = ""
+    log_content = ""
     file_path = os.path.join(
         config.get("temp_path"),
         'upload',
@@ -760,6 +769,7 @@ async def save_image(group: int, category: str, urls: list) -> MessageChain:
     for url in urls:
         # noinspection PyBroadException
         try:
+            log_content += f"下载：{url}\n"
             res = requests.get(url)
             content_type = res.headers.get("Content-Type")
             file_type = content_type.split('/')[-1]
@@ -775,6 +785,8 @@ async def save_image(group: int, category: str, urls: list) -> MessageChain:
     if not failed_count == 0:
         res_str += f'，失败{failed_count}张。\n'
         res_str += err_text
+    log_content += res_str
+    moca_log(log_content, group=group)
     return MessageChain.create([
         Plain(res_str)
     ])
@@ -809,3 +821,15 @@ async def upload_photo(group: int, message: MessageChain) -> MessageChain:
             data_list.append(message_data[index].get("url"))
     res: MessageChain = await save_image(group, category, data_list)
     return res
+
+
+def moca_log(content: str, group=0, qq=0):
+    """
+    日志.
+
+    :param group: 群号
+    :param qq: 操作人QQ
+    :param content: 记录日志
+    :return: None
+    """
+    ml.insert_one({"time": get_timestamp_now(), "group": group, "qq": qq, "content": content})
