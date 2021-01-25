@@ -1,15 +1,11 @@
 import asyncio
 import platform
 
-from graia.application.event.mirai import MemberJoinEvent, BotInvitedJoinGroupRequestEvent, BotJoinGroupEvent, \
-    MemberLeaveEventKick
-
-from function import *
-from graia.application import GraiaMiraiApplication, Session, GroupMessage, MessageChain, Group, Member
-from graia.application.group import MemberPerm
-from graia.application.message.elements.internal import Plain, At, Image
 from graia.broadcast import Broadcast, ExecutionStop
 from graia.broadcast.builtin.decoraters import Depend
+
+from function import *
+from graia.application.entry import *
 
 from functions.baidu_trans import baidu_translate
 from functions.draw import draw_lot
@@ -18,6 +14,7 @@ from functions.pan import pan_change, buy_pan, eat_pan, twice_lp, pan_log
 from functions.random_song import random_song
 from functions.signin import user_signin
 debug_mode = os.path.isfile("debug")
+print("Debug mode:", debug_mode)
 
 
 loop = asyncio.get_event_loop()
@@ -49,7 +46,7 @@ def judge_debug_mode(group: Group):
 #   判断是否@机器人
 def judge_at_bot(message: MessageChain):
     at_bot = False
-    if At in message:
+    if message.has(At):
         at_data = message.get(At)[0].dict()
         at_target: int = at_data['target']
         at_bot: bool = at_target == config.get("bot_id")
@@ -758,7 +755,8 @@ async def bot_join_group(app: GraiaMiraiApplication, group: Group):
 async def superman_kick_from_group(
         app: GraiaMiraiApplication,
         group: Group,
-        event: MemberLeaveEventKick
+        event: MemberLeaveEventKick,
+        member: Member
 ):
     # superman被踢自动退出
     if is_superman(event.member.id):
