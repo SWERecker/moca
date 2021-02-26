@@ -120,15 +120,21 @@ async def eat_pan(qq: int) -> MessageChain:
         ])
 
 
-def twice_lp(group: int, member: int):
+def twice_lp(group: int, member: int, is_private=False):
     """
     双倍lp
 
     :param group: 群号
     :param member: QQ号
+    :param is_private: 是否为私聊
     :return: [要发发送的图片数量，剩余面包数量]
     """
-    if cfg_enabled(group, "pan"):
+    if is_private:
+        do_twice_lp = True
+    else:
+        do_twice_lp = cfg_enabled(group, "pan")
+
+    if do_twice_lp:
         result = pan_change(member, -TWICE_LP_PAN_AMOUNT)
         if result[0]:
             pan_log(member, -TWICE_LP_PAN_AMOUNT, "双倍lp")
