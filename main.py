@@ -478,9 +478,12 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
                 else:
                     res_text = "呜呜呜，面包不够吃啦~"
                     en_twice_lp = False
-            d = [Image.fromLocalFile(e) for e in rand_pic(lp_name, pic_num)]
+            file_list = rand_pic(lp_name, pic_num)
+            d = [Image.fromLocalFile(e) for e in file_list]
+            d.append(Plain(get_pic_keys(file_list[0])))
             if en_twice_lp:
                 d.insert(0, Plain(res_text))
+                d.append(Plain(get_pic_keys(file_list[1])))
             await app.sendGroupMessage(group, MessageChain.create(d))
             moca_log(f"发送图片：{str(d)}", group=group.id)
             update_count(group.id, lp_name)
@@ -591,8 +594,10 @@ async def group_message_handler(app: GraiaMiraiApplication, message: MessageChai
                     res_text = "呜呜呜，面包不够吃啦~"
             file_list = rand_pic(req_name, pic_num)
             d = [Image.fromLocalFile(e) for e in file_list]
+            d.append(Plain(get_pic_keys(file_list[0])))
             if en_twice_lp:
                 d.insert(0, Plain(res_text))
+                d.append(Plain(get_pic_keys(file_list[1])))
             await app.sendGroupMessage(group, MessageChain.create(d))
             moca_log(f"发送图片：{str(d)}", group=group.id)
             update_count(group.id, req_name)

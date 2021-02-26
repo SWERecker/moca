@@ -36,7 +36,8 @@ ml = db1['moca_log']
 
 cache_pool = redis.ConnectionPool(host='localhost', port=6379, db=3, decode_responses=True)
 rc = redis.Redis(connection_pool=cache_pool)
-
+cache_pool2 = redis.ConnectionPool(host='localhost', port=6379, db=2, decode_responses=True)
+r = redis.Redis(connection_pool=cache_pool2)
 forbidden_signs = "/[]-^?*.$\\|"
 
 
@@ -831,3 +832,13 @@ def moca_log(content: str, group=0, qq=0):
     :return: None
     """
     ml.insert_one({"time": get_timestamp_now(), "group": group, "qq": qq, "content": content})
+
+
+def get_pic_keys(pic_path: str):
+    """
+    获取图片包含的人物.
+
+    :param pic_path: 图片路径
+    :return: 图片中含有的人物
+    """
+    return r.hget("REC", pic_path)
